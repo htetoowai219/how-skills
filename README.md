@@ -20,10 +20,7 @@ Install any skill directly into an active project or agent environment (Claude C
 
 ```bash
 # Install interactively from GitHub
-npx skills add https://github.com/htetoowai219/how-skills.git
-
-# Or install from a local clone
-npx skills add /path/to/how-agent-skills
+npx skills@latest add htetoowai219/how-skills
 ```
 
 Use arrow keys in the interactive terminal picker to select skills.
