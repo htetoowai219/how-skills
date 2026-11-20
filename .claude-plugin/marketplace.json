@@ -23,6 +23,7 @@
       "source": "./skills",
       "strict": false,
       "skills": [
+        "./express-backend-architecture",
         "./express-to-nest"
       ]
     }
