@@ -1,10 +1,12 @@
 ---
 name: express-backend-architecture
-description: Scaffolds, extends, and refactors modular Express.js TypeScript backends conforming to our production conventions (Mongoose, layered separation, asyncHandler, ApiError, and clean response envelopes). Trigger when bootstrapping a new Express backend, adding vertical resource slices (routes, controllers, models, types), or standardizing middleware and error handling. Do NOT use for frontend code, NestJS apps, Next.js API routes, or standalone Python/Go services.
+description: Scaffolds, extends, and refactors modular Express.js TypeScript backends conforming to our production conventions (Mongoose, layered separation, asyncHandler, ApiError, clean response envelopes, and token-safe modular lazy-loading). Trigger when scaffolding a new Express backend from scratch, adding vertical CRUD resource bundles, or integrating optional modules (JWT auth/RBAC, Multer/Cloudinary uploads, Redis caching, Docker). Do NOT use for frontend code, NestJS apps, Next.js API routes, or non-Express scripts.
 license: MIT
 compatibility: Designed for Agent Skills-compatible tools (Claude Code, Cursor, Codex, Gemini CLI, OpenCode)
 metadata:
   source: custom
+  author: "how"
+  version: "2.0.0"
 allowed-tools:
   - read_file
   - run_command
@@ -14,30 +16,81 @@ allowed-tools:
 
 # Express Backend Architecture
 
-Enforces our production architecture, naming grammar, layer responsibilities, and error handling contracts for Express.js TypeScript APIs.
+Production-grade Express.js TypeScript architecture enforcing strict ESM (`"type": "module"`), NodeNext resolution, clean layered separation, resilient database connections, centralized error propagation, and token-safe modular lazy-loading.
 
 ---
 
-## 1. When to Load Which Reference
+## 1. Mode Detection (Run First — Read-Only)
 
-Keep this operational document compact. Offload deep code examples to `references/`:
+Before reading reference files or writing code, inspect the working directory to determine the execution mode:
 
-| Objective / Task | Reference File to Read | What It Contains |
-| :--- | :--- | :--- |
-| **Scaffolding a new backend from scratch** | [Scaffold Template](references/scaffold-template.md) | `package.json`, `tsconfig.json`, `server.ts`, `app.ts`, `connectDb.ts`, and health check endpoints. |
-| **Adding or modifying a feature/resource** | [Vertical Feature Slice](references/feature-slice.md) | Complete slice: `*.type.ts`, `*.model.ts`, `*.controller.ts`, and `*.route.ts`. |
-| **Configuring auth, error handling, or utilities** | [Middleware & Utils](references/middleware-and-utils.md) | `ApiError`, `asyncHandler`, global error handler, JWT auth middleware, `express.d.ts`, and optional Cloudinary/Redis modules. |
+- **Mode A — New Backend Scaffold:**
+  - Neither root nor `server/` contains an Express application (`package.json` missing or lacks `express`).
+  - Follow the 3 sequential phases: **Phase 1 (Interactive Grill) -> Phase 2 (Selective Load & Scaffold) -> Phase 3 (Post-Scaffold Resource Offer)**.
+- **Mode B — Existing Express Backend (Extend):**
+  - An Express application already exists on disk. **Skip the full scaffold grill**.
+  - **Adding a CRUD resource:** Read ONLY [CRUD Vertical Slice](references/crud-slice.md), match the existing repo's import extensions (`.js`) and conventions, and generate the requested bundle.
+  - **Bolting on an optional module:** Read ONLY the specific matching reference file ([Auth](references/opt-auth.md), [Uploads](references/opt-uploads.md), [Redis](references/opt-redis.md), or [Docker](references/opt-docker.md)) and integrate it cleanly without touching unrelated files.
 
 ---
 
-## 2. Canonical Directory Structure & Naming Table
+## 2. Phase 1: Interactive Scaffold Grill (Mode A Only)
+
+Before reading any `references/opt-*.md` files or scaffolding code, present this single, structured checklist so the user can lock in requirements in one response:
+
+```text
+Express Backend Scaffold Configuration:
+1. Target Path & Package Manager: Scaffold at repo root or inside server/? (npm [default] / pnpm / bun)
+2. Project Scope: Basic CRUD API only, or full application backend? (Full app backend [default])
+3. Users & Authentication:
+   • Basic JWT [default — scaffolds user model/controller/route + auth middleware]
+   • JWT Access + Refresh tokens
+   • Add Google OAuth / RBAC roles (specify roles if needed, e.g. admin, user)
+   • None (no user files or auth middleware)
+4. Image / File Uploads: Need Multer + Cloudinary? (No [default] / Yes)
+5. Redis: Need Redis client for caching or locking? (No [default] / Yes)
+6. Docker Setup: None [default] / Infra-only Compose (MongoDB + Redis) / Full Docker Compose (API + DB/Redis)
+```
+
+**Fast-Path Prompt:**  
+> *"Reply with your picks (e.g. `server/, Basic JWT, no uploads, Redis, infra-only docker`) or reply `minimal` for root + basic CRUD with no optional modules."*
+
+- **Wait for the user's response** before loading optional references or generating files.
+- Skip the grill **only** if the user already specified all requirements in their prompt or explicitly said *"skip questions / use defaults"*.
+
+---
+
+## 3. Phase 2: Token-Safe Lazy Loading & Clean Base Scaffold
+
+1. **Strict Lazy-Loading:** Read [Core Scaffold](references/core-scaffold.md) first. Read `references/opt-*.md` files **strictly** for modules the user selected `Yes` to. **NEVER load unselected optional references.**
+2. **Domain-Free Baseline Rule:**
+   - When Auth is enabled, scaffold **only** the `user` bundle (`model/user.model.ts`, `controllers/user.controller.ts`, `routes/user.route.ts`, plus auth middleware/types) alongside core bootstrap files and `/api/v1/health`.
+   - When Auth is `None`, scaffold **only** core bootstrap files, DB connection, error handler, health check, and an empty master router.
+   - **Strictly Forbidden:** Never scaffold `item`, `product`, `movie`, `booking`, or leftover domain models from reference repos during the initial base scaffold.
+3. **Dependency & Environment Hygiene:**
+   - Include npm dependencies **only** for selected modules (e.g., do NOT install `multer`, `cloudinary`, or `redis` if unselected).
+   - Generate `.env.example` with keys matching only active modules.
+
+---
+
+## 4. Phase 3: Post-Scaffold Resource Offer (Mode A Mandatory Step)
+
+After completing the base scaffold and verifying clean compilation (`npm run build` or `npm run typecheck`), summarize the generated structure and conclude with this exact prompt:
+
+> *"Base scaffold is ready. Would you like me to generate any extra CRUD resource bundles (model + controller + route + validation, wired into your main router)? If yes, list the resource names and any rough fields or auth rules (e.g., `task: title, status, dueDate [auth]` or `category: name [admin only]`)."*
+
+When the user provides resource names, read [CRUD Vertical Slice](references/crud-slice.md) (if not already loaded) and generate each resource following our layered conventions.
+
+---
+
+## 5. Canonical Directory Structure & Naming Grammar
 
 ```text
 src/
 ├── server.ts                       # Entry point: DB connection, HTTP listen, graceful shutdown
 ├── app.ts                          # App configuration: Helmet, CORS, parsers, routes, error handlers
 ├── db/
-│   └── connectDb.ts                # Mongoose connection with exponential backoff & retry loop
+│   └── connectDb.ts                # Mongoose connection with retry loop & sleep backoff
 ├── routes/
 │   ├── <resource>.route.ts         # Resource endpoints & middleware chaining
 │   └── index.ts                    # Master route aggregator mounted at /api/v1
@@ -46,17 +99,16 @@ src/
 ├── models/
 │   └── <resource>.model.ts         # Mongoose schema, TypeScript interface, indexes
 ├── middlewares/
-│   ├── auth.middleware.ts          # verifyAccessToken, requireRole, optionalAuth
+│   ├── auth.middleware.ts          # [Optional] verifyAccessToken, requireRole, optionalAuth
 │   ├── error.middleware.ts         # notFoundHandler & global errorHandler
-│   ├── upload.middleware.ts        # [Optional] Multer memory storage & MIME validation
-│   └── validate.middleware.ts      # [Optional] Zod request schema validation
+│   └── upload.middleware.ts        # [Optional] Multer memory storage & MIME validation
 ├── utils/
 │   ├── apiError.util.ts            # Custom HTTP error class with static status factories
 │   ├── asyncHandler.util.ts        # Promise rejection forwarder to next()
 │   ├── cloudinary.util.ts          # [Optional] Cloudinary upload/delete streams
-│   └── redis.util.ts               # [Optional] Redis client with isRedisAvailable()
+│   └── redis.util.ts               # [Optional] Redis client with connection state check
 └── types/
-    ├── express.d.ts                # Express.Request user augmentation
+    ├── express.d.ts                # [Optional] Express.Request user augmentation
     └── <resource>.type.ts          # Domain interfaces & DTOs
 ```
 
@@ -75,69 +127,46 @@ src/
 
 ---
 
-## 3. Core Architectural Rules
+## 6. Core Architectural Rules
 
-1. **Pure ESM with TypeScript**: Use `"type": "module"`, target `ES2022` or `NodeNext`. Use explicit `.js` extensions for local module imports in NodeNext.
-2. **Plural Folder Names**: Directories under `src/` must be plural (`controllers/`, `models/`, `routes/`, `middlewares/`, `utils/`, `types/`).
-3. **Split Bootstrap**: `app.ts` creates and configures the Express application; `server.ts` imports `app`, waits for `await connectDb()`, starts listening, and registers graceful termination handlers.
-4. **Zero Inline Route Logic**: Route files declare endpoint paths and chain middlewares only. Handlers belong strictly in controllers.
-5. **Centralized Error Propagation**: Never write redundant `try/catch` blocks in controllers. Wrap handlers with `asyncHandler(...)` and throw `ApiError.badRequest()`, `ApiError.notFound()`, etc.
-6. **Consistent JSON Envelopes**:
-   - Success: `res.status(200).json({ success: true, ...data })`
-   - Created: `res.status(201).json({ success: true, message: "...", item })`
+1. **Pure ESM with TypeScript:** Use `"type": "module"` in `package.json`, target `ES2022`, and `moduleResolution: "NodeNext"`. Local relative imports inside `src/` must include explicit `.js` extensions.
+2. **Plural Folder Names:** Subdirectories under `src/` must be plural (`controllers/`, `models/`, `routes/`, `middlewares/`, `utils/`, `types/`).
+3. **Split Bootstrap:** `app.ts` configures middleware and route pipelines. `server.ts` handles database connection, server listening, and graceful termination.
+4. **Zero Inline Route Logic:** Routes define endpoint verbs and middleware chains only. Business logic belongs in controllers.
+5. **Centralized Error Propagation:** Never write redundant `try/catch` in controllers. Wrap handlers in `asyncHandler(...)` and throw `ApiError` instances (`ApiError.badRequest()`, `ApiError.notFound()`).
+6. **Consistent JSON Envelopes:**
+   - Success: `res.status(200).json({ success: true, data: ... })`
+   - Created: `res.status(201).json({ success: true, message: "...", data: ... })`
    - Error: `res.status(code).json({ success: false, message: "...", details? })`
-7. **Hybrid Auth Transport**: Authentication middleware checks `req.cookies.token` first, falling back to `Authorization: Bearer <token>`. Decoded user data attaches to `req.user` typed via `src/types/express.d.ts`.
-8. **Mongoose Discipline**:
-   - Always pass `{ timestamps: true }` in schema options.
-   - Use `lean()` on read-only queries for maximum throughput.
-   - Sanitize search regex strings to avoid Catastrophic Backtracking (ReDoS).
-9. **Resilient Database Connection**: `connectDb.ts` must implement an exponential retry loop (`MAX_ATTEMPTS = 10`, `RETRY_DELAY_MS = 3000`) before throwing a fatal exit.
-10. **Module Isolation**: Optional integrations (Cloudinary, Redis, Zod, Mailer) must remain modular and only be introduced when the project explicitly requires them.
+7. **Hybrid Auth Transport:** Auth middleware checks HTTP-only `req.cookies.token` first, then falls back to `Authorization: Bearer <token>`. Decoded user attaches to `req.user` typed via `src/types/express.d.ts`.
+8. **Mongoose Discipline:** Always specify `{ timestamps: true }`, index queried fields, and use `.lean()` on read-only queries for optimal throughput.
+9. **Resilient Database Connection:** `connectDb.ts` implements a 10-attempt retry loop with exponential/sleep backoff before fatal termination.
+10. **Module Isolation:** Unselected modules must not leave unused dependencies in `package.json` or orphaned keys in `.env.example`.
 
 ---
 
-## 4. Workflow: Scaffolding a New Backend
+## 7. Lazy-Load Reference Routing Table
 
-1. **Read Scaffold Template**: Consult [Scaffold Template](references/scaffold-template.md).
-2. **Initialize Configuration**:
-   - Create `package.json` with ESM `"type": "module"` and `scripts` (`dev: "tsx watch src/server.ts"`, `build: "tsc"`).
-   - Configure `tsconfig.json` with `NodeNext` or `ES2022`.
-   - Setup `.env.example` and `.gitignore`.
-3. **Establish Core Infrastructure**:
-   - Implement `src/db/connectDb.ts` with connection retry loop.
-   - Implement `src/utils/apiError.util.ts` and `src/utils/asyncHandler.util.ts`.
-   - Implement `src/middlewares/error.middleware.ts` (`notFoundHandler`, `errorHandler`).
-   - Implement `src/app.ts` with security headers, CORS, parsers, and `/health` check.
-   - Implement `src/server.ts` with graceful shutdown hooks.
-4. **Mount Route Aggregator**: Create `src/routes/index.ts` mounted at `/api/v1` in `app.ts`.
+> [!IMPORTANT]
+> **Token Optimization:** Load reference files **only** when the corresponding condition is met. Never read unselected optional references.
 
----
-
-## 5. Workflow: Adding a New Resource / Feature Slice
-
-1. **Read Feature Slice Reference**: Consult [Vertical Feature Slice](references/feature-slice.md).
-2. **Define Types (`src/types/<resource>.type.ts`)**: Declare Mongoose document interface, DTOs, and query param types.
-3. **Define Model (`src/models/<resource>.model.ts`)**: Define schema with validation, indexes, and `{ timestamps: true }`.
-4. **Implement Controller (`src/controllers/<resource>.controller.ts`)**:
-   - Wrap each export with `asyncHandler`.
-   - Extract `req.params`, `req.query`, or `req.body`.
-   - Execute model operations.
-   - Throw `ApiError` on invalid state or missing entities.
-   - Return standardized response envelope.
-5. **Define Routes (`src/routes/<resource>.route.ts`)**:
-   - Map HTTP verbs (`get`, `post`, `patch`, `delete`).
-   - Attach guards (`verifyAccessToken`, `requireRole('admin')`).
-6. **Register in Aggregator (`src/routes/index.ts`)**:
-   - Mount router at `router.use("/<plural-resource>", resourceRoutes)`.
+| Condition / Task | Reference File | Contents |
+| :--- | :--- | :--- |
+| **New backend scaffold (always)** | [Core Scaffold](references/core-scaffold.md) | Baseline tree, `package.json`, `tsconfig.json`, `server.ts`, `app.ts`, `connectDb.ts`, `error.middleware.ts`, `apiError.util.ts`, `asyncHandler.util.ts`, and `/api/v1/health`. |
+| **Adding domain CRUD resource** | [CRUD Vertical Slice](references/crud-slice.md) | End-to-end slice template (`type.ts`, `model.ts`, `controller.ts`, `route.ts`, pagination, sorting, router mount). |
+| **Users / Auth selected** | [Auth & User Slice](references/opt-auth.md) | JWT auth middleware, RBAC `requireRole`, `express.d.ts`, and full `user` model/controller/route slice. |
+| **File uploads selected** | [Multer & Cloudinary](references/opt-uploads.md) | In-memory Multer middleware, Cloudinary v2 streaming upload/delete helpers, and controller integration. |
+| **Redis selected** | [Redis Caching](references/opt-redis.md) | Redis connection client, `getCached`, `setCached`, cache-aside pattern, and graceful shutdown hook. |
+| **Docker selected** | [Docker & Compose](references/opt-docker.md) | Production multi-stage `Dockerfile`, `.dockerignore`, Infra-only Compose, and Full-Stack Compose. |
 
 ---
 
-## 6. Strict Do-Nots & Anti-Patterns
+## 8. Strict Do-Nots & Anti-Patterns
 
-- **DO NOT** execute database queries or inline request handling inside `src/routes/`.
+- **DO NOT** execute database queries or inline handlers inside `src/routes/`.
 - **DO NOT** use CommonJS `require()` or `module.exports`; write strict ESM.
-- **DO NOT** catch errors in controllers only to return custom 500 status codes; let unhandled errors bubble to `errorHandler`.
-- **DO NOT** create singular folder names like `src/model/` or `src/controller/`; use plural names.
-- **DO NOT** dump untyped objects into `req.user`; declare properties in `src/types/express.d.ts`.
-- **DO NOT** hardcode secrets or connection URLs; always read from validated `process.env`.
-- **DO NOT** install heavyweight ORMs, DI containers, or repository patterns; adhere to our lean controller-model architecture.
+- **DO NOT** catch errors in controllers to return ad-hoc 500 status codes; let errors bubble to `errorHandler`.
+- **DO NOT** create singular directories like `src/model/` or `src/controller/`; use plural names.
+- **DO NOT** inject untyped fields onto `req.user`; declare properties in `src/types/express.d.ts`.
+- **DO NOT** hardcode credentials or URLs; always read from `process.env`.
+- **DO NOT** scaffold leftover business entities (`movie`, `booking`, `product`) during a new project bootstrap.
