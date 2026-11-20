@@ -23,6 +23,9 @@
       "source": "./skills",
       "strict": false,
       "skills": [
+        "./backend-hardening",
+        "./de-slop",
+        "./dockerize",
         "./express-backend-architecture",
         "./express-to-nest",
         "./frontend-architecture",
