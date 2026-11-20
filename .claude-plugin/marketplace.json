@@ -26,7 +26,8 @@
         "./express-backend-architecture",
         "./express-to-nest",
         "./frontend-architecture",
-        "./readme-writer"
+        "./readme-writer",
+        "./wire"
       ]
     }
   ]
