@@ -118,6 +118,7 @@ See [AGENTS.md](AGENTS.md) for detailed authoring conventions.
 |---|---|
 | [`express-backend-architecture`](skills/express-backend-architecture/SKILL.md) | Scaffolds, extends, and refactors modular Express.js TypeScript backends conforming to our production conventions (Mongoose, layered separation, asyncHandler, ApiError, and clean response envelopes). Trigger when bootstrapping a new Express backend, adding vertical resource slices (routes, controllers, models, types), or standardizing middleware and error handling. Do NOT use for frontend code, NestJS apps, Next.js API routes, or standalone Python/Go services. |
 | [`express-to-nest`](skills/express-to-nest/SKILL.md) | Migrate an Express.js TypeScript backend to a modular NestJS application with 100% API contract fidelity, matching Mongoose schemas, Cloudinary/Multer handling, JWT cookies, and security configurations. |
+| [`readme-writer`](skills/readme-writer/SKILL.md) | Generates or refactors clean, prototype-first README.md files in an authentic human developer voice through codebase inspection and a structured two-round interactive grill. Use when writing a new README from scratch, overhauling an existing inconsistent README, or updating documentation after major architecture, Docker, or configuration changes. Do NOT use for authoring internal docs/ deep dives, API references, changelogs, PR summaries, or AGENTS.md files. |
 <!-- SKILLS_TABLE_END -->
 
 ---

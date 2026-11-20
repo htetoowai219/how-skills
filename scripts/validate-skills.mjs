@@ -19,6 +19,7 @@ const GENERIC_PROJECT_DIRS = [
   'src/', 'app/', 'lib/', 'tests/', 'test/', 'public/', 'config/',
   'dist/', 'build/', 'node_modules/', 'apps/', 'packages/', 'components/',
   'pages/', 'styles/', 'server/', 'client/', 'docs/', 'scripts/', 'skills/', 'templates/',
+  'assets/', 'screenshots/', 'static/', 'media/',
 ];
 
 const GENERIC_PROJECT_FILES = new Set([
