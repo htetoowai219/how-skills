@@ -13,23 +13,34 @@ const MAX_NAME_LENGTH = 64;
 const MAX_DESCRIPTION_LENGTH = 1024;
 const BODY_LINE_LIMIT = 500;
 
-// Root files and directories to ignore when resolving relative file references
-const REPO_ROOT_IGNORES = new Set([
-  'agents.md',
-  'readme.md',
-  'third_party_licenses.md',
-  'package.json',
-  'changelog.md',
-  'license',
-  'license.md',
-  'contributing.md',
-  '.gitignore',
+// Standard project directories and files to ignore when checking skill relative paths
+const GENERIC_PROJECT_DIRS = [
+  'src/', 'app/', 'lib/', 'tests/', 'test/', 'public/', 'config/',
+  'dist/', 'build/', 'node_modules/', 'apps/', 'packages/', 'components/',
+  'pages/', 'styles/', 'server/', 'client/', 'docs/', 'scripts/', 'skills/', 'templates/',
+];
+
+const GENERIC_PROJECT_FILES = new Set([
+  'package.json', 'package-lock.json', 'tsconfig.json', 'nest-cli.json',
+  '.env', '.env.local', '.env.example', '.env.production',
+  'docker-compose.yml', 'dockerfile', 'makefile',
+  'claude.md', 'agents.md', 'readme.md', 'changelog.md', 'third_party_licenses.md',
+  'license', 'license.md', 'contributing.md', '.gitignore', 'seed.ts',
 ]);
 
 const SYSTEM_DIRS = new Set([
   'bin', 'boot', 'dev', 'etc', 'home', 'lib', 'lib64', 'media',
   'mnt', 'opt', 'proc', 'root', 'run', 'sbin', 'srv', 'sys', 'tmp', 'usr', 'var',
 ]);
+
+const HTTP_TERMS = new Set([
+  'health', 'api', 'auth', 'login', 'logout', 'signup', 'users', 'user', 'items', 'item',
+]);
+
+const BUNDLED_PREFIXES = [
+  'references/', 'flow/', 'modes/', 'patterns/', 'agents/', 'internal/',
+  'agent-modes/', 'assets/', 'templates/', 'scripts/', 'examples/',
+];
 
 /**
  * Parses frontmatter from a markdown string.
@@ -63,7 +74,6 @@ export function parseFrontmatter(content) {
       } else if (multilineType === 'folded') {
         val = multilineBuffer.join(' ').replace(/\s+/g, ' ').trim();
       } else {
-        // Plain indented continuation
         val = multilineBuffer.join(' ').replace(/\s+/g, ' ').trim();
       }
       if (inNestedKey) {
@@ -111,7 +121,7 @@ export function parseFrontmatter(content) {
       }
     }
 
-    // Nested object key indented (e.g., metadata: source: custom)
+    // Nested object key indented (e.g., metadata:\n  source: custom)
     if (inNestedKey && indent > 0) {
       const colonIdx = line.indexOf(':');
       if (colonIdx !== -1) {
@@ -268,9 +278,12 @@ export function validateSkill(dirName, availableSkillDirs = new Set()) {
   }
 
   // 6. Relative file reference check (hard error)
-  const referencedPaths = extractReferencedPaths(body);
+  // Strip fenced code blocks before analyzing file links
+  const bodyWithoutCodeBlocks = body.replace(/```[\s\S]*?```/g, '');
+  const referencedPaths = extractReferencedPaths(bodyWithoutCodeBlocks, skillDir);
+
   for (const ref of referencedPaths) {
-    if (isRepoRootOrIgnored(ref)) {
+    if (isIgnoredPath(ref)) {
       continue;
     }
 
@@ -281,10 +294,10 @@ export function validateSkill(dirName, availableSkillDirs = new Set()) {
   }
 
   // 7. Cross-skill handoff check (warning)
-  const slashCommands = extractSlashCommands(body);
+  const slashCommands = extractSlashCommands(bodyWithoutCodeBlocks);
   for (const cmd of slashCommands) {
-    // If it's a known unix system path or common word, skip
-    if (SYSTEM_DIRS.has(cmd)) {
+    // If it's a known unix system path or common HTTP term, skip
+    if (SYSTEM_DIRS.has(cmd) || HTTP_TERMS.has(cmd)) {
       continue;
     }
     // If command doesn't exist in skills/ and is not the current skill
@@ -305,7 +318,7 @@ export function validateSkill(dirName, availableSkillDirs = new Set()) {
 /**
  * Extracts relative file references from markdown links and backticks.
  */
-function extractReferencedPaths(markdown) {
+function extractReferencedPaths(markdown, skillDir) {
   const refs = new Set();
 
   // 1. Markdown links: [text](path)
@@ -314,17 +327,17 @@ function extractReferencedPaths(markdown) {
   while ((match = linkRegex.exec(markdown)) !== null) {
     const target = match[1].trim();
     const cleanPath = target.split('#')[0].split('?')[0].trim();
-    if (isLikelyRelativeFilePath(cleanPath)) {
+    if (isCandidateLinkTarget(cleanPath)) {
       refs.add(cleanPath);
     }
   }
 
-  // 2. Backticks: `path/to/file.ext` or `./file.ext`
+  // 2. Backticks: explicit relative paths `./file.ext` or `references/file.ext`
   const codeRegex = /`([^`\n]+)`/g;
   while ((match = codeRegex.exec(markdown)) !== null) {
     const candidate = match[1].trim();
     const cleanPath = candidate.split('#')[0].split('?')[0].trim();
-    if (isLikelyRelativeFilePath(cleanPath)) {
+    if (isCandidateBacktickPath(cleanPath, skillDir)) {
       refs.add(cleanPath);
     }
   }
@@ -332,46 +345,74 @@ function extractReferencedPaths(markdown) {
   return Array.from(refs);
 }
 
-function isLikelyRelativeFilePath(p) {
+function isCandidateLinkTarget(p) {
   if (!p) return false;
-  // Ignore URLs, emails, protocols, anchors
+  // Ignore URLs, protocols, anchors
   if (/^[a-z][a-z0-9+.-]*:/i.test(p) || p.startsWith('//') || p.startsWith('#')) {
     return false;
   }
-  // Ignore CLI commands, parameters, flags, template placeholders
-  if (/\s/.test(p) || p.startsWith('-') || p.startsWith('{{') || p.endsWith('}}')) {
+  // Ignore variables, wildcards, placeholders
+  if (p.includes('$') || p.includes('*') || p.includes('?') || p.includes('<') || p.includes('>')) {
+    return false;
+  }
+  // Ignore template numbers like NNNN
+  if (p.includes('NNNN') || p.includes('…') || p.includes('...')) {
     return false;
   }
   // Ignore absolute filesystem paths starting with /
   if (p.startsWith('/')) {
     return false;
   }
+  return true;
+}
 
-  // Must match explicit relative path or path with directory and file extension
+function isCandidateBacktickPath(p, skillDir) {
+  if (!p) return false;
+  // Must not have whitespace, flags, template placeholders, variables, or wildcards
+  if (/\s/.test(p) || p.startsWith('-') || p.startsWith('{{') || p.endsWith('}}') || p.includes('$')) {
+    return false;
+  }
+  if (p.includes('*') || p.includes('?') || p.includes('<') || p.includes('>') || p.includes('NNNN') || p.includes('…')) {
+    return false;
+  }
+  if (/^[a-z][a-z0-9+.-]*:/i.test(p) || p.startsWith('//') || p.startsWith('#') || p.startsWith('/')) {
+    return false;
+  }
+  // Pure file extensions like `.ts` or `.js` are not file paths
+  if (/^\.[a-z0-9]+$/i.test(p)) {
+    return false;
+  }
+
+  // Explicit relative paths like `./foo.md` or `../foo.md`
   if (p.startsWith('./') || p.startsWith('../')) {
     return true;
   }
-  if (p.startsWith('references/') || p.startsWith('flow/') || p.startsWith('assets/') || p.startsWith('examples/')) {
+
+  // Subfolders bundled in skill
+  if (BUNDLED_PREFIXES.some(prefix => p.startsWith(prefix))) {
     return true;
   }
-  if (p.includes('/') && /\.[a-z0-9_-]+$/i.test(p)) {
-    return true;
+
+  // If it's a bare sibling file name (e.g., `agent-prompt.md`) that actually exists in this skill folder, verify it
+  if (!p.includes('/') && /\.(md|txt|json|yaml|yml|sh|mjs|js|ts)$/i.test(p)) {
+    if (skillDir && fs.existsSync(path.join(skillDir, p))) {
+      return true;
+    }
   }
 
   return false;
 }
 
-function isRepoRootOrIgnored(ref) {
+function isIgnoredPath(ref) {
   const normalized = ref.replace(/^[./\\]+/, '').toLowerCase();
   const base = path.basename(normalized);
 
-  if (REPO_ROOT_IGNORES.has(base)) return true;
-  if (normalized.startsWith('docs/') || normalized.startsWith('scripts/') || normalized.startsWith('templates/')) {
-    return true;
+  if (GENERIC_PROJECT_FILES.has(base)) return true;
+
+  for (const dir of GENERIC_PROJECT_DIRS) {
+    if (normalized.startsWith(dir)) return true;
   }
-  if (normalized.startsWith('skills/')) {
-    return true;
-  }
+
   return false;
 }
 
@@ -380,26 +421,38 @@ function isRepoRootOrIgnored(ref) {
  */
 function extractSlashCommands(markdown) {
   const commands = new Set();
-  // Slash commands start with / followed by valid skill-name characters
-  // Preceded by boundary (start of line, space, paren, bracket, quote, backtick)
-  // Not followed by another slash (not a path like /usr/bin or /foo/bar)
-  const slashRegex = /(?:^|[\s(`'"])(\/([a-z0-9]+(?:-[a-z0-9]+)*))(?=[^\w\/-]|$)/g;
-  let match;
-  while ((match = slashRegex.exec(markdown)) !== null) {
-    const fullMatch = match[1];
-    const cmd = match[2];
-    // Check it's not a path (e.g. followed immediately by /)
-    const afterIndex = match.index + match[0].length;
-    if (markdown[afterIndex] === '/') {
-      continue;
+  const lines = markdown.split(/\r?\n/);
+
+  for (const line of lines) {
+    // Check if line mentions HTTP methods or endpoint/route context
+    const isHttpRoute = /\b(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD|endpoint|route|HTTP|cookie|headers?)\b/i.test(line);
+
+    const slashRegex = /(?:^|[\s(`'"])(\/([a-z0-9]+(?:-[a-z0-9]+)*))(?=[^\w\/-]|$)/g;
+    let match;
+    while ((match = slashRegex.exec(line)) !== null) {
+      const cmd = match[2];
+
+      // If line is in HTTP context and cmd is a common route name, skip
+      if (isHttpRoute && HTTP_TERMS.has(cmd)) {
+        continue;
+      }
+
+      // Check it's not a path (e.g. followed immediately by /)
+      const afterIndex = match.index + match[0].length;
+      if (line[afterIndex] === '/') {
+        continue;
+      }
+
+      // Ignore if preceded by : or / (part of URL)
+      const beforeIndex = match.index;
+      if (beforeIndex > 0 && (line[beforeIndex - 1] === ':' || line[beforeIndex - 1] === '/')) {
+        continue;
+      }
+
+      commands.add(cmd);
     }
-    // Also ignore if preceded by : or / (part of URL)
-    const beforeIndex = match.index;
-    if (beforeIndex > 0 && (markdown[beforeIndex - 1] === ':' || markdown[beforeIndex - 1] === '/')) {
-      continue;
-    }
-    commands.add(cmd);
   }
+
   return Array.from(commands);
 }
 
@@ -472,7 +525,7 @@ export function runValidation() {
     const firstDetail = details[0] || '';
     console.log(
       padEnd(res.skillName, 28) +
-      padEnd(statusLabel, 19) + // accounts for ANSI escape sequences length
+      padEnd(statusLabel, 19) +
       firstDetail
     );
 

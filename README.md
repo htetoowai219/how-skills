@@ -96,7 +96,12 @@ See [AGENTS.md](AGENTS.md) for detailed authoring conventions.
 <!-- SKILLS_TABLE_START -->
 | Skill | Description | Source |
 |---|---|---|
-| _(No skills installed yet)_ | _Use `npm run new -- <skill-name>` to create your first skill._ | — |
+| [`architect`](skills/architect/SKILL.md) | Run /architect when choosing between approaches, designing a feature or page, picking a tech stack, or when implementation workflows say a decision is owed, anytime a load bearing technical decision is unmade. Asks deep questions, recommends an answer, and writes a build spec to docs/specs/. Owns all spec files. | `jsmastery-pro/skills` |
+| [`audit`](skills/audit/SKILL.md) | Run /audit on a greenfield project, an existing codebase with missing docs, or one area (/audit src/auth) to bootstrap the project's AI context, the AGENTS.md files every later skill reads. Writes tool agnostic AGENTS.md plus thin CLAUDE.md pointers, adding only what is missing; never overwrites curated content. | `jsmastery-pro/skills` |
+| [`check`](skills/check/SKILL.md) | Confirm a change before merge. `/check verify` drives the real app to prove behavior against the spec (every acceptance criterion met, every surface built). `/check review` runs a senior code review on a fresh model, one that did not write the code. Verify after implementation, review before a PR. Writes to docs/reviews/, never edits code. | `jsmastery-pro/skills` |
+| [`debug`](skills/debug/SKILL.md) | Run /debug to find and fix a bug's root cause: a test failing for an unclear reason, /check verify finding a failure, or behavior being wrong. Runs a reproduce, localize, hypothesize, test, fix, verify loop, makes the minimal fix, and adds a regression test. No features, no extra refactors. | `jsmastery-pro/skills` |
+| [`express-to-nest`](skills/express-to-nest/SKILL.md) | Migrate an Express.js TypeScript backend to a modular NestJS application with 100% API contract fidelity, matching Mongoose schemas, Cloudinary/Multer handling, JWT cookies, and security configurations. | `custom` |
+| [`sync`](skills/sync/SKILL.md) | Run /sync as the last step after a change is complete, around merge, to keep durable knowledge current. Updates root and nested AGENTS.md, reconciles the scope from repo evidence, and flags specs the change made stale. Surgical edits only: it adds lines, and rewrites single lines it owns. Never a whole section, never curated prose. | `jsmastery-pro/skills` |
 <!-- SKILLS_TABLE_END -->
 
 ---
