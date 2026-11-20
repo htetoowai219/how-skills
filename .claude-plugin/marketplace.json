@@ -1,0 +1,30 @@
+{
+  "name": "how-agent-skills",
+  "owner": {
+    "name": "how"
+  },
+  "plugins": [
+    {
+      "name": "jsm-skills",
+      "description": "Curated workflow skills vendored from JavaScript Mastery",
+      "source": "./skills",
+      "strict": false,
+      "skills": [
+        "./architect",
+        "./audit",
+        "./check",
+        "./debug",
+        "./sync"
+      ]
+    },
+    {
+      "name": "how-skills",
+      "description": "Personal development skills and codebase conventions",
+      "source": "./skills",
+      "strict": false,
+      "skills": [
+        "./express-to-nest"
+      ]
+    }
+  ]
+}

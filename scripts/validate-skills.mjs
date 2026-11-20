@@ -7,6 +7,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '..');
 const SKILLS_DIR = path.join(REPO_ROOT, 'skills');
+const MARKETPLACE_PATH = path.join(REPO_ROOT, '.claude-plugin', 'marketplace.json');
 
 const NAME_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_NAME_LENGTH = 64;
@@ -316,6 +317,101 @@ export function validateSkill(dirName, availableSkillDirs = new Set()) {
 }
 
 /**
+ * Validates .claude-plugin/marketplace.json manifest.
+ * Checks that file exists, is valid JSON, has non-empty plugins array,
+ * every skill path resolves to skills/<name>/SKILL.md, and all skills in skills/
+ * are categorized without orphans or duplicates.
+ */
+export function validateMarketplace(skillDirs = []) {
+  const errors = [];
+  const warnings = [];
+
+  if (!fs.existsSync(MARKETPLACE_PATH)) {
+    return {
+      status: 'FAIL',
+      errors: ['Missing .claude-plugin/marketplace.json manifest'],
+      warnings,
+      categorizedSkills: new Map(),
+      pluginCount: 0,
+    };
+  }
+
+  let data;
+  try {
+    const raw = fs.readFileSync(MARKETPLACE_PATH, 'utf8');
+    data = JSON.parse(raw);
+  } catch (err) {
+    return {
+      status: 'FAIL',
+      errors: [`Invalid JSON in .claude-plugin/marketplace.json: ${err.message}`],
+      warnings,
+      categorizedSkills: new Map(),
+      pluginCount: 0,
+    };
+  }
+
+  if (!data || !Array.isArray(data.plugins) || data.plugins.length === 0) {
+    return {
+      status: 'FAIL',
+      errors: [".claude-plugin/marketplace.json must contain a non-empty 'plugins' array"],
+      warnings,
+      categorizedSkills: new Map(),
+      pluginCount: 0,
+    };
+  }
+
+  const categorizedSkills = new Map(); // skillName -> pluginName
+
+  for (const plugin of data.plugins) {
+    if (!plugin.name || typeof plugin.name !== 'string') {
+      errors.push("Plugin in marketplace.json missing required 'name' string");
+      continue;
+    }
+
+    if (!Array.isArray(plugin.skills)) {
+      errors.push(`Plugin "${plugin.name}" must contain a 'skills' array`);
+      continue;
+    }
+
+    for (const skillEntry of plugin.skills) {
+      if (typeof skillEntry !== 'string') {
+        errors.push(`Plugin "${plugin.name}" has non-string skill entry: ${JSON.stringify(skillEntry)}`);
+        continue;
+      }
+
+      const skillName = skillEntry.replace(/^\.\//, '').trim();
+      const skillMdPath = path.join(SKILLS_DIR, skillName, 'SKILL.md');
+
+      if (!fs.existsSync(skillMdPath)) {
+        errors.push(`Plugin "${plugin.name}" declares nonexistent skill: "${skillEntry}" (expected at skills/${skillName}/SKILL.md)`);
+      }
+
+      if (categorizedSkills.has(skillName)) {
+        errors.push(`Skill "${skillName}" is duplicated across plugin groups: "${categorizedSkills.get(skillName)}" and "${plugin.name}"`);
+      } else {
+        categorizedSkills.set(skillName, plugin.name);
+      }
+    }
+  }
+
+  // Check that every directory in skills/ is categorized in marketplace.json
+  for (const dir of skillDirs) {
+    if (!categorizedSkills.has(dir)) {
+      errors.push(`Skill directory "skills/${dir}" is not categorized in .claude-plugin/marketplace.json`);
+    }
+  }
+
+  const status = errors.length > 0 ? 'FAIL' : warnings.length > 0 ? 'WARN' : 'PASS';
+  return {
+    status,
+    errors,
+    warnings,
+    categorizedSkills,
+    pluginCount: data.plugins.length,
+  };
+}
+
+/**
  * Extracts relative file references from markdown links and backticks.
  */
 function extractReferencedPaths(markdown, skillDir) {
@@ -472,71 +568,93 @@ export function runValidation() {
 
   const availableSkillSet = new Set(skillDirs);
 
-  if (skillDirs.length === 0) {
-    console.log('\n================================================================================');
-    console.log('Skill Validator (agentskills.io spec)');
-    console.log('================================================================================');
-    console.log('No skills found in skills/ directory.');
-    console.log('Summary: 0 skills scanned | 0 passed | 0 warnings | 0 failed');
-    console.log('================================================================================\n');
-    return { success: true, count: 0, passed: 0, warned: 0, failed: 0 };
-  }
-
-  const results = skillDirs.map(dir => validateSkill(dir, availableSkillSet));
-
-  // Print results table
   console.log('\n================================================================================');
-  console.log('Skill Validator (agentskills.io spec)');
+  console.log('Skill Validator (agentskills.io spec & marketplace)');
   console.log('================================================================================');
-  console.log(
-    padEnd('Skill', 28) +
-    padEnd('Status', 10) +
-    'Details'
-  );
-  console.log('-'.repeat(80));
 
   let passedCount = 0;
   let warnedCount = 0;
   let failedCount = 0;
 
-  for (const res of results) {
-    const statusLabel =
-      res.status === 'PASS' ? '\x1b[32mPASS\x1b[0m' :
-      res.status === 'WARN' ? '\x1b[33mWARN\x1b[0m' :
-      '\x1b[31mFAIL\x1b[0m';
+  // 1. Validate individual skills
+  const results = skillDirs.map(dir => validateSkill(dir, availableSkillSet));
 
-    const plainStatus = res.status;
-    let details = [];
-
-    if (plainStatus === 'PASS') {
-      passedCount++;
-      details.push('All checks passed');
-    } else if (plainStatus === 'WARN') {
-      warnedCount++;
-      details = res.warnings.map(w => `• [WARN] ${w}`);
-    } else {
-      failedCount++;
-      details = [
-        ...res.errors.map(e => `• [ERROR] ${e}`),
-        ...res.warnings.map(w => `• [WARN] ${w}`),
-      ];
-    }
-
-    const firstDetail = details[0] || '';
+  if (results.length > 0) {
     console.log(
-      padEnd(res.skillName, 28) +
-      padEnd(statusLabel, 19) +
-      firstDetail
+      padEnd('Skill', 28) +
+      padEnd('Status', 10) +
+      'Details'
     );
+    console.log('-'.repeat(80));
 
-    for (let i = 1; i < details.length; i++) {
-      console.log(' '.repeat(38) + details[i]);
+    for (const res of results) {
+      const statusLabel =
+        res.status === 'PASS' ? '\x1b[32mPASS\x1b[0m' :
+        res.status === 'WARN' ? '\x1b[33mWARN\x1b[0m' :
+        '\x1b[31mFAIL\x1b[0m';
+
+      const plainStatus = res.status;
+      let details = [];
+
+      if (plainStatus === 'PASS') {
+        passedCount++;
+        details.push('All checks passed');
+      } else if (plainStatus === 'WARN') {
+        warnedCount++;
+        details = res.warnings.map(w => `• [WARN] ${w}`);
+      } else {
+        failedCount++;
+        details = [
+          ...res.errors.map(e => `• [ERROR] ${e}`),
+          ...res.warnings.map(w => `• [WARN] ${w}`),
+        ];
+      }
+
+      const firstDetail = details[0] || '';
+      console.log(
+        padEnd(res.skillName, 28) +
+        padEnd(statusLabel, 19) +
+        firstDetail
+      );
+
+      for (let i = 1; i < details.length; i++) {
+        console.log(' '.repeat(38) + details[i]);
+      }
+    }
+  } else {
+    console.log('No skills found in skills/ directory.');
+  }
+
+  // 2. Validate .claude-plugin/marketplace.json
+  const marketRes = validateMarketplace(skillDirs);
+  console.log('-'.repeat(80));
+
+  const marketStatusLabel =
+    marketRes.status === 'PASS' ? '\x1b[32mPASS\x1b[0m' :
+    marketRes.status === 'WARN' ? '\x1b[33mWARN\x1b[0m' :
+    '\x1b[31mFAIL\x1b[0m';
+
+  if (marketRes.status === 'PASS') {
+    console.log(
+      padEnd('marketplace.json', 28) +
+      padEnd(marketStatusLabel, 19) +
+      `Validated ${marketRes.pluginCount} plugin group(s), all ${skillDirs.length} skill(s) categorized`
+    );
+  } else {
+    failedCount++;
+    console.log(
+      padEnd('marketplace.json', 28) +
+      padEnd(marketStatusLabel, 19) +
+      (marketRes.errors[0] || 'Marketplace validation failed')
+    );
+    for (let i = 1; i < marketRes.errors.length; i++) {
+      console.log(' '.repeat(38) + `• [ERROR] ${marketRes.errors[i]}`);
     }
   }
 
   console.log('-'.repeat(80));
   console.log(
-    `Summary: ${results.length} scanned | ` +
+    `Summary: ${results.length} skill(s) scanned | ` +
     `${passedCount} passed | ` +
     `${warnedCount} warning(s) | ` +
     `${failedCount} failed`

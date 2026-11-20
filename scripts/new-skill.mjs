@@ -8,18 +8,39 @@ const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '..');
 const SKILLS_DIR = path.join(REPO_ROOT, 'skills');
 const TEMPLATE_DIR = path.join(REPO_ROOT, 'templates', 'skill-template');
+const MARKETPLACE_PATH = path.join(REPO_ROOT, '.claude-plugin', 'marketplace.json');
 
 const NAME_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_NAME_LENGTH = 64;
 
 // Filter out npm argument separator '--'
-const args = process.argv.slice(2).filter(arg => arg !== '--');
-const skillName = args[0]?.trim();
+const rawArgs = process.argv.slice(2).filter(arg => arg !== '--');
+let targetGroup = 'how-skills';
+const positional = [];
+
+for (let i = 0; i < rawArgs.length; i++) {
+  const arg = rawArgs[i];
+  if (arg === '--group' || arg === '-g') {
+    i++;
+    if (rawArgs[i]) {
+      targetGroup = rawArgs[i].trim();
+    }
+  } else if (arg.startsWith('--group=')) {
+    targetGroup = arg.split('=')[1].trim();
+  } else if (arg.startsWith('-')) {
+    // Other flag, ignore or handle
+  } else {
+    positional.push(arg.trim());
+  }
+}
+
+const skillName = positional[0];
 
 if (!skillName) {
   console.error('\nError: No skill name specified.');
-  console.error('Usage: npm run new -- <skill-name>');
-  console.error('Example: npm run new -- code-reviewer\n');
+  console.error('Usage: npm run new -- <skill-name> [--group <plugin-group>]');
+  console.error('Example: npm run new -- code-reviewer');
+  console.error('Example: npm run new -- custom-linter --group how-skills\n');
   process.exit(1);
 }
 
@@ -60,10 +81,14 @@ try {
   fs.cpSync(TEMPLATE_DIR, targetDir, { recursive: true });
 
   // Process copied files to replace {{SKILL_NAME}} and clean placeholders
-  replacePlaceholdersInDir(targetDir, skillName);
+  replacePlaceholdersInDir(targetDir, skillName, targetGroup);
+
+  // Register into .claude-plugin/marketplace.json
+  registerInMarketplace(skillName, targetGroup);
 
   console.log(`\n\x1b[32m✔\x1b[0m Successfully created skill \x1b[1m"${skillName}"\x1b[0m at:`);
-  console.log(`  skills/${skillName}/\n`);
+  console.log(`  skills/${skillName}/`);
+  console.log(`  Registered in category: \x1b[36m${targetGroup}\x1b[0m (.claude-plugin/marketplace.json)\n`);
   console.log('Next steps:');
   console.log(`  1. Edit skills/${skillName}/SKILL.md`);
   console.log(`  2. Add deep-dive guides or checklists in skills/${skillName}/references/`);
@@ -80,19 +105,65 @@ try {
   process.exit(1);
 }
 
-function replacePlaceholdersInDir(dirPath, name) {
+function registerInMarketplace(name, group) {
+  if (!fs.existsSync(MARKETPLACE_PATH)) {
+    console.warn(`Warning: ${MARKETPLACE_PATH} not found. Skipping category registration.`);
+    return;
+  }
+
+  try {
+    const raw = fs.readFileSync(MARKETPLACE_PATH, 'utf8');
+    const data = JSON.parse(raw);
+
+    if (!Array.isArray(data.plugins)) {
+      data.plugins = [];
+    }
+
+    let plugin = data.plugins.find(p => p.name === group);
+    if (!plugin) {
+      console.warn(`Plugin group "${group}" not found in marketplace.json. Creating it.`);
+      plugin = {
+        name: group,
+        description: `${group} skills`,
+        source: './skills',
+        strict: false,
+        skills: [],
+      };
+      data.plugins.push(plugin);
+    }
+
+    if (!Array.isArray(plugin.skills)) {
+      plugin.skills = [];
+    }
+
+    const entry = `./${name}`;
+    if (!plugin.skills.includes(entry)) {
+      plugin.skills.push(entry);
+    }
+
+    plugin.skills.sort((a, b) => a.localeCompare(b));
+
+    fs.writeFileSync(MARKETPLACE_PATH, JSON.stringify(data, null, 2) + '\n', 'utf8');
+  } catch (err) {
+    console.error(`Warning: Failed to update marketplace.json: ${err.message}`);
+  }
+}
+
+function replacePlaceholdersInDir(dirPath, name, group) {
   const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+  const sourceVal = group === 'jsm-skills' ? 'jsmastery-pro/skills' : 'custom';
 
   for (const entry of entries) {
     const fullPath = path.join(dirPath, entry.name);
     if (entry.isDirectory()) {
-      replacePlaceholdersInDir(fullPath, name);
+      replacePlaceholdersInDir(fullPath, name, group);
     } else if (entry.isFile()) {
-      // Process markdown and text files
       if (/\.(md|txt|json|yaml|yml)$/i.test(entry.name)) {
         let content = fs.readFileSync(fullPath, 'utf8');
         content = content.replaceAll('{{SKILL_NAME}}', name);
-        // Remove template comment markers if present (<!-- TEMPLATE_ONLY --> ... <!-- /TEMPLATE_ONLY -->)
+        if (entry.name === 'SKILL.md') {
+          content = content.replace(/source:\s*custom/, `source: ${sourceVal}`);
+        }
         content = content.replace(/<!--\s*TEMPLATE_ONLY[\s\S]*?\/TEMPLATE_ONLY\s*-->/g, '');
         fs.writeFileSync(fullPath, content, 'utf8');
       }

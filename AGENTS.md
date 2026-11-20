@@ -8,7 +8,7 @@ All AI agents authoring, modifying, or vendoring skills in this repository MUST 
 
 ## 1. Specification & Portable Frontmatter
 
-Every skill must reside in its own folder under `skills/<skill-name>/` with a root `SKILL.md` file.
+Every skill must reside in its own folder under `skills/<skill-name>/` with a root `SKILL.md` file. Keep all skill directories flat inside `skills/` (never nest skill folders).
 
 Frontmatter must start and end with `---` and support the portable standard fields:
 
@@ -19,7 +19,7 @@ description: Concise, third-person description of what the skill does and when t
 license: MIT
 compatibility: Designed for Agent Skills-compatible tools (Claude Code, Cursor, Codex, Gemini CLI, OpenCode)
 metadata:
-  source: custom # or "jsm", "third-party"
+  source: custom # or "jsmastery-pro/skills"
   author: "Author Name"
   version: "1.0.0"
 allowed-tools:
@@ -46,7 +46,23 @@ allowed-tools:
 
 ---
 
-## 2. Progressive Disclosure & Line Limits
+## 2. Categorization & Marketplace Manifest (`.claude-plugin/marketplace.json`)
+
+The `.claude-plugin/marketplace.json` file is the **single source of truth** for skill categories and enables collapsible groups in the `npx skills` interactive picker:
+
+- **`jsm-skills`**: Curated workflow skills vendored from JavaScript Mastery.
+- **`how-skills`**: Personal development skills and codebase conventions.
+
+### Category Management Rules
+- Keep skill directories flat inside `skills/` (do NOT move folders into subdirectories).
+- Every folder in `skills/` must appear in exactly one plugin group in `.claude-plugin/marketplace.json` as `"./<skill-name>"`.
+- Entries in each plugin's `skills` array must be sorted alphabetically.
+- Whenever a skill is created, renamed, or deleted, update `.claude-plugin/marketplace.json` accordingly.
+- `npm run new -- <name>` automatically registers new skills into `how-skills` (or specify `--group <plugin-name>`).
+
+---
+
+## 3. Progressive Disclosure & Line Limits
 
 - **Keep `SKILL.md` under 500 lines**:
   - `SKILL.md` acts as the primary operational entry point.
@@ -57,7 +73,7 @@ allowed-tools:
 
 ---
 
-## 3. Generalization & Zero Secrets
+## 4. Generalization & Zero Secrets
 
 - **No hardcoded secrets**: Never embed API keys, personal access tokens, passwords, private URLs, or credentials.
 - **No personal paths**: Never hardcode local machine paths (e.g., `/home/username/`, `C:\Users\...`).
@@ -65,18 +81,22 @@ allowed-tools:
 
 ---
 
-## 4. Cross-Skill References & Dependencies
+## 5. Cross-Skill References & Dependencies
 
 - When referencing another skill via slash command (e.g. `/architect`, `/audit`), verify whether that skill exists in `skills/`.
 - If a skill depends on another skill that is not installed, note it as an optional handoff or document prerequisite steps.
 
 ---
 
-## 5. Workflow for Adding or Editing Skills
+## 6. Workflow for Adding or Editing Skills
 
 1. **Scaffold a new skill**:
    ```bash
+   # Default to how-skills category
    npm run new -- <skill-name>
+
+   # Or specify category explicitly
+   npm run new -- <skill-name> --group jsm-skills
    ```
 2. **Author `SKILL.md` & references**:
    - Fill in instructions, triggers, negative conditions, and workflow steps.
@@ -85,9 +105,9 @@ allowed-tools:
    ```bash
    npm run validate
    ```
-   Ensure zero hard errors and address any actionable warnings.
+   Ensures zero hard errors for both `SKILL.md` rules and `.claude-plugin/marketplace.json` completeness.
 4. **Update Catalog**:
    ```bash
    npm run sync-readme
    ```
-   Updates the catalog table in `README.md`.
+   Updates the grouped catalog tables in `README.md`.
