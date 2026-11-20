@@ -28,6 +28,11 @@ const GENERIC_PROJECT_FILES = new Set([
   'docker-compose.yml', 'dockerfile', 'makefile',
   'claude.md', 'agents.md', 'readme.md', 'changelog.md', 'third_party_licenses.md',
   'license', 'license.md', 'contributing.md', '.gitignore', 'seed.ts',
+  'design.md',
+]);
+
+const BUILTIN_SLASH_COMMANDS = new Set([
+  'clear', 'help', 'init', 'compact', 'cost', 'exit', 'quit', 'reset', 'review', 'login', 'logout',
 ]);
 
 const SYSTEM_DIRS = new Set([
@@ -298,8 +303,8 @@ export function validateSkill(dirName, availableSkillDirs = new Set()) {
   // 7. Cross-skill handoff check (warning)
   const slashCommands = extractSlashCommands(bodyWithoutCodeBlocks);
   for (const cmd of slashCommands) {
-    // If it's a known unix system path or common HTTP term, skip
-    if (SYSTEM_DIRS.has(cmd) || HTTP_TERMS.has(cmd)) {
+    // If it's a known unix system path, common HTTP term, or built-in slash command, skip
+    if (SYSTEM_DIRS.has(cmd) || HTTP_TERMS.has(cmd) || BUILTIN_SLASH_COMMANDS.has(cmd)) {
       continue;
     }
     // If command doesn't exist in skills/ and is not the current skill

@@ -14,7 +14,11 @@
         "./audit",
         "./check",
         "./debug",
-        "./sync"
+        "./develop",
+        "./document",
+        "./scope",
+        "./sync",
+        "./test"
       ]
     },
     {

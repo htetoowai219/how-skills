@@ -13,7 +13,11 @@ This repository contains vendored third-party agent skills distributed under ope
   - `audit`
   - `check`
   - `debug`
+  - `develop`
+  - `document`
+  - `scope`
   - `sync`
+  - `test`
 
 ```text
 MIT License
