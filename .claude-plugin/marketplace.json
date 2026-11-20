@@ -25,6 +25,7 @@
       "skills": [
         "./express-backend-architecture",
         "./express-to-nest",
+        "./frontend-architecture",
         "./readme-writer"
       ]
     }
