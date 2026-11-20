@@ -1,101 +1,116 @@
-# Personal Agent Skills Catalog
+<div align="center">
+  <h1>personal-agent-skills</h1>
+  <p>Agent skills catalog adhering to the open agentskills.io specification, installable via npx skills.</p>
+  <p>
+    <a href="https://github.com/htetoowai219/how-skills"><img src="https://img.shields.io/badge/spec-agentskills.io-blue?style=flat-square" alt="Specification" /></a>
+    <img src="https://img.shields.io/badge/node-%3E%3D18-informational?style=flat-square" alt="Node" />
+    <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" />
+  </p>
+</div>
 
-A personal Agent Skills repository 100% compliant with the open [agentskills.io](https://agentskills.io) specification and the `npx skills` CLI installer (`vercel-labs/skills`).
+## Quick Start
 
-This repository houses both custom agent skills and cherry-picked, MIT-licensed third-party skills (such as skills from JavaScript Mastery).
+### Prerequisites
+- Node.js 18+
+- Git
 
----
+### Installation
 
-## 🚀 Installation & Usage
-
-Skills from this repository can be installed into any Agent Skills-compatible environment (Claude Code, Cursor, Codex, Gemini CLI, OpenCode, etc.) using `npx skills`.
-
-### 1. Interactive Installation
-
-Install skills interactively from your local clone or directly from GitHub:
+Install any skill directly into an active project or agent environment (Claude Code, Cursor, Codex, Gemini CLI, OpenCode):
 
 ```bash
-# From local repository clone
-npx skills add /path/to/this-repo
+# Install interactively from GitHub
+npx skills add https://github.com/htetoowai219/how-skills.git
 
-# From GitHub repository (HTTPS)
-npx skills add https://github.com/<user>/<repo>.git
-
-# From GitHub repository (SSH)
-npx skills add git@github.com:<user>/<repo>.git
+# Or install from a local clone
+npx skills add /path/to/how-agent-skills
 ```
 
-The interactive picker will display all available skills found in `skills/`.
+Use arrow keys in the interactive terminal picker to select skills.
 
-### 2. Non-Interactive / Scripted Installation
-
-Specify individual skills, target agent environments, and bypass prompts:
+<details>
+<summary>Non-interactive and global install commands</summary>
 
 ```bash
-# Install a specific skill for a specific agent (e.g., claude-code)
-npx skills add /path/to/this-repo --skill <skill-name> --agent claude-code -y
+# Install a specific skill for a specific agent (e.g. claude-code)
+npx skills add https://github.com/htetoowai219/how-skills.git --skill <skill-name> --agent claude-code -y
 
 # Install globally across all supported agents
-npx skills add /path/to/this-repo --skill <skill-name> -g -y
-```
+npx skills add https://github.com/htetoowai219/how-skills.git --skill <skill-name> -g -y
 
-### 3. Updating Installed Skills
-
-Keep skills updated in your current project or globally:
-
-```bash
-# Update skills in current project workspace
+# Update skills in the current workspace
 npx skills update
 
 # Update globally installed skills
 npx skills update -g
 ```
+</details>
 
----
+## Architecture & Design
 
-## 🛠 Authoring & Maintaining Skills
+Engineering workflows often fragment across disparate tool-specific prompts and configurations. This repository unifies coding conventions and repeatable workflows into modular skill directories conforming to the open `agentskills.io` standard.
 
-This repository uses pure Node.js ESM utility scripts with **zero external npm dependencies**.
+```text
+how-agent-skills/
+├── .claude-plugin/
+│   └── marketplace.json    # Category groupings for the npx skills picker
+├── scripts/                # Native Node.js ESM tooling (zero npm dependencies)
+│   ├── new-skill.mjs       # Scaffolds skills and updates marketplace manifest
+│   ├── validate-skills.mjs # Validates frontmatter, links, line limits, and categories
+│   └── sync-readme.mjs     # Generates and updates the catalog table below
+├── skills/                 # Flat skill folders (never nested)
+│   ├── architect/          # Curated workflow skill
+│   │   └── SKILL.md        # Entry point capped under 500 lines
+│   └── readme-writer/      # Personal convention skill with references/
+│       ├── SKILL.md
+│       └── references/     # Progressive disclosure docs and templates
+└── templates/              # Base scaffold for new skills
+```
 
-### Workflow
+### Engineering Trade-Offs
 
-1. **Scaffold a new skill**:
-   ```bash
-   # Default category: how-skills
-   npm run new -- <skill-name>
+- **Flat Skill Directory:** All skills reside directly in `skills/` without subfolder nesting. Category metadata lives exclusively in `.claude-plugin/marketplace.json` to keep directory paths predictable across different agent runtimes.
+- **Progressive Disclosure:** `SKILL.md` is strictly limited to 500 lines to preserve agent context windows during activation. Deep checklists, schemas, and templates are offloaded to `references/` and loaded only when relevant.
+- **Zero-Dependency Tooling:** Scaffolding, validation, and catalog indexing run on Node.js standard modules (`node:fs`, `node:path`, `node:url`), eliminating dependency maintenance and supply-chain drift.
 
-   # Or specify category explicitly
-   npm run new -- <skill-name> --group jsm-skills
-   ```
-   This copies `templates/skill-template/` into `skills/<skill-name>/`, configures spec-compliant frontmatter, and registers the skill in `.claude-plugin/marketplace.json`.
+## Skill Development Workflow
 
-2. **Author instructions & progressive disclosure**:
-   - Edit `skills/<skill-name>/SKILL.md`.
-   - Ensure the description clearly states **what** the skill does and **when** to trigger it.
-   - Keep `SKILL.md` under 500 lines. Place detailed checklists, schemas, and deep dives in `skills/<skill-name>/references/`.
+The repository includes scripts to scaffold, test, and index skills.
 
-3. **Validate skills**:
-   ```bash
-   npm run validate
-   ```
-   Runs the spec linter checking folder naming, YAML frontmatter, line count limits, relative file references, and cross-skill references.
+### 1. Scaffold a New Skill
+```bash
+# Default group: how-skills
+npm run new -- <skill-name>
 
-4. **Synchronize catalog index**:
-   ```bash
-   npm run sync-readme
-   ```
-   Automatically updates the catalog table below.
+# Or specify a target group explicitly
+npm run new -- <skill-name> --group jsm-skills
+```
+This copies `templates/skill-template/` into `skills/<skill-name>/`, sets up standard frontmatter, and registers the folder in `.claude-plugin/marketplace.json`.
 
-5. **List installed skills**:
-   ```bash
-   npm run list
-   ```
+### 2. Validate Specification Compliance
+```bash
+npm run validate
+```
+The test runner validates:
+- Directory naming (`^[a-z0-9]+(?:-[a-z0-9]+)*$`).
+- YAML frontmatter completeness (`name`, `description`, `license`, `metadata`).
+- File length constraints (`SKILL.md` <= 500 lines).
+- Relative reference integrity (links to `references/` resolve on disk).
+- Category synchronization across `.claude-plugin/marketplace.json`.
 
-See [AGENTS.md](AGENTS.md) for detailed authoring conventions.
+<details>
+<summary>Catalog synchronization and listing</summary>
 
----
+```bash
+# Sync the catalog table below from disk frontmatter
+npm run sync-readme
 
-## 📚 Skill Catalog
+# List all categorized skills in the terminal
+npm run list
+```
+</details>
+
+## Skill Catalog
 
 <!-- SKILLS_TABLE_START -->
 ### jsm-skills
@@ -126,9 +141,7 @@ See [AGENTS.md](AGENTS.md) for detailed authoring conventions.
 | [`wire`](skills/wire/SKILL.md) | Wires an existing frontend and backend (routes, payloads, CORS/proxy, auth transport, env). Trigger when connecting apps or fixing API integration issues. Do NOT use for initial scaffolding from scratch or UI styling. |
 <!-- SKILLS_TABLE_END -->
 
----
+## License & Attribution
 
-## 📄 License & Attribution
-
-- Custom skills in this repository are released under the [MIT License](LICENSE).
-- Vendored third-party skills (e.g., JavaScript Mastery) retain their original licenses and attributions. See [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) for details.
+- Custom skills in this repository are released under the [MIT License](package.json).
+- Vendored third-party skills retain their original licenses and attributions. See [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) for details.
