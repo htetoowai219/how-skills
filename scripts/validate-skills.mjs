@@ -1,0 +1,512 @@
+#!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const REPO_ROOT = path.resolve(__dirname, '..');
+const SKILLS_DIR = path.join(REPO_ROOT, 'skills');
+
+const NAME_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const MAX_NAME_LENGTH = 64;
+const MAX_DESCRIPTION_LENGTH = 1024;
+const BODY_LINE_LIMIT = 500;
+
+// Root files and directories to ignore when resolving relative file references
+const REPO_ROOT_IGNORES = new Set([
+  'agents.md',
+  'readme.md',
+  'third_party_licenses.md',
+  'package.json',
+  'changelog.md',
+  'license',
+  'license.md',
+  'contributing.md',
+  '.gitignore',
+]);
+
+const SYSTEM_DIRS = new Set([
+  'bin', 'boot', 'dev', 'etc', 'home', 'lib', 'lib64', 'media',
+  'mnt', 'opt', 'proc', 'root', 'run', 'sbin', 'srv', 'sys', 'tmp', 'usr', 'var',
+]);
+
+/**
+ * Parses frontmatter from a markdown string.
+ * Supports standard YAML scalar styles, multiline blocks (> and |), nested metadata, and arrays.
+ */
+export function parseFrontmatter(content) {
+  if (!content.startsWith('---')) {
+    return { error: 'File does not start with frontmatter delimiter (---)' };
+  }
+
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
+  if (!match) {
+    return { error: 'Frontmatter delimiter is unclosed or malformed (expected opening and closing ---)' };
+  }
+
+  const rawYaml = match[1];
+  const body = match[2];
+  const lines = rawYaml.split(/\r?\n/);
+  const data = {};
+
+  let currentKey = null;
+  let multilineType = null; // 'folded' (>), 'literal' (|), or 'indent'
+  let multilineBuffer = [];
+  let inNestedKey = null;
+
+  function commitMultiline() {
+    if (currentKey && multilineType) {
+      let val;
+      if (multilineType === 'literal') {
+        val = multilineBuffer.join('\n');
+      } else if (multilineType === 'folded') {
+        val = multilineBuffer.join(' ').replace(/\s+/g, ' ').trim();
+      } else {
+        // Plain indented continuation
+        val = multilineBuffer.join(' ').replace(/\s+/g, ' ').trim();
+      }
+      if (inNestedKey) {
+        data[inNestedKey][currentKey] = val;
+      } else {
+        data[currentKey] = val;
+      }
+      multilineBuffer = [];
+      multilineType = null;
+      currentKey = null;
+    }
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Skip empty lines or pure comments if not in a multiline block
+    if (!trimmed || trimmed.startsWith('#')) {
+      if (multilineType && (line.startsWith('  ') || line.startsWith('\t'))) {
+        multilineBuffer.push('');
+      }
+      continue;
+    }
+
+    const indent = line.search(/\S/);
+
+    // Multiline continuation
+    if (multilineType && indent > 0) {
+      multilineBuffer.push(line.trim());
+      continue;
+    } else if (multilineType) {
+      commitMultiline();
+    }
+
+    // List item (e.g., under allowed-tools or metadata)
+    if (trimmed.startsWith('- ')) {
+      const itemVal = stripQuotes(trimmed.slice(2).trim());
+      if (currentKey && Array.isArray(data[currentKey])) {
+        data[currentKey].push(itemVal);
+        continue;
+      } else if (inNestedKey && currentKey && Array.isArray(data[inNestedKey]?.[currentKey])) {
+        data[inNestedKey][currentKey].push(itemVal);
+        continue;
+      }
+    }
+
+    // Nested object key indented (e.g., metadata: source: custom)
+    if (inNestedKey && indent > 0) {
+      const colonIdx = line.indexOf(':');
+      if (colonIdx !== -1) {
+        const subKey = line.slice(0, colonIdx).trim();
+        const subVal = line.slice(colonIdx + 1).trim();
+        if (subVal === '') {
+          currentKey = subKey;
+          data[inNestedKey][subKey] = [];
+        } else {
+          data[inNestedKey][subKey] = stripQuotes(subVal);
+        }
+        continue;
+      }
+    } else {
+      inNestedKey = null;
+    }
+
+    // Top-level key: value
+    const colonIdx = line.indexOf(':');
+    if (colonIdx !== -1) {
+      commitMultiline();
+      const key = line.slice(0, colonIdx).trim();
+      const rawVal = line.slice(colonIdx + 1).trim();
+
+      if (rawVal === '>' || rawVal === '>-') {
+        currentKey = key;
+        multilineType = 'folded';
+        multilineBuffer = [];
+      } else if (rawVal === '|' || rawVal === '|-') {
+        currentKey = key;
+        multilineType = 'literal';
+        multilineBuffer = [];
+      } else if (rawVal === '') {
+        // Could be a nested object or list
+        if (key === 'metadata') {
+          inNestedKey = 'metadata';
+          data.metadata = {};
+        } else if (key === 'allowed-tools') {
+          currentKey = key;
+          data[key] = [];
+        } else {
+          currentKey = key;
+          multilineType = 'indent';
+          multilineBuffer = [];
+        }
+      } else if (rawVal.startsWith('[') && rawVal.endsWith(']')) {
+        // Inline array: [a, b]
+        const items = rawVal.slice(1, -1).split(',').map(s => stripQuotes(s.trim())).filter(Boolean);
+        data[key] = items;
+      } else {
+        // Plain scalar or start of folded without indicator
+        data[key] = stripQuotes(rawVal);
+        currentKey = key;
+      }
+    } else if (currentKey && indent > 0) {
+      // Continuation of previous key
+      if (!multilineType) {
+        multilineType = 'indent';
+        multilineBuffer = [data[currentKey]];
+      }
+      multilineBuffer.push(line.trim());
+    }
+  }
+
+  commitMultiline();
+
+  return { data, body, rawYaml };
+}
+
+function stripQuotes(str) {
+  if (typeof str !== 'string') return str;
+  if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
+    return str.slice(1, -1);
+  }
+  return str;
+}
+
+/**
+ * Validates a single skill directory.
+ * Returns { skillName, status: 'PASS' | 'WARN' | 'FAIL', errors: [], warnings: [] }
+ */
+export function validateSkill(dirName, availableSkillDirs = new Set()) {
+  const skillDir = path.join(SKILLS_DIR, dirName);
+  const skillFile = path.join(skillDir, 'SKILL.md');
+  const errors = [];
+  const warnings = [];
+
+  // 1. Required file: SKILL.md
+  if (!fs.existsSync(skillFile)) {
+    return {
+      skillName: dirName,
+      status: 'FAIL',
+      errors: [`Missing SKILL.md in skills/${dirName}`],
+      warnings: [],
+    };
+  }
+
+  let content;
+  try {
+    content = fs.readFileSync(skillFile, 'utf8');
+  } catch (err) {
+    return {
+      skillName: dirName,
+      status: 'FAIL',
+      errors: [`Unable to read SKILL.md: ${err.message}`],
+      warnings: [],
+    };
+  }
+
+  // 2. YAML Frontmatter check
+  const parsed = parseFrontmatter(content);
+  if (parsed.error) {
+    errors.push(parsed.error);
+    return {
+      skillName: dirName,
+      status: 'FAIL',
+      errors,
+      warnings,
+    };
+  }
+
+  const { data, body } = parsed;
+
+  // 3. Name rules
+  if (!data.name || typeof data.name !== 'string') {
+    errors.push("Missing required frontmatter field: 'name'");
+  } else {
+    const name = data.name.trim();
+    if (name.length < 1 || name.length > MAX_NAME_LENGTH) {
+      errors.push(`'name' must be between 1 and ${MAX_NAME_LENGTH} characters (got ${name.length})`);
+    }
+    if (!NAME_REGEX.test(name)) {
+      errors.push(`'name' "${name}" is invalid; must be lowercase alphanumeric with single hyphens (e.g. "my-skill-name")`);
+    }
+    if (name !== dirName) {
+      errors.push(`'name' "${name}" does not match folder name "${dirName}"`);
+    }
+  }
+
+  // 4. Description rules
+  if (!data.description || typeof data.description !== 'string' || data.description.trim().length === 0) {
+    errors.push("Missing or empty required frontmatter field: 'description'");
+  } else {
+    const desc = data.description.trim();
+    if (desc.length > MAX_DESCRIPTION_LENGTH) {
+      errors.push(`'description' exceeds maximum length of ${MAX_DESCRIPTION_LENGTH} characters (got ${desc.length})`);
+    }
+  }
+
+  // 5. Progressive disclosure check (warning)
+  const bodyLines = body.split(/\r?\n/).length;
+  if (bodyLines > BODY_LINE_LIMIT) {
+    warnings.push(`Progressive disclosure: SKILL.md body has ${bodyLines} lines (exceeds ${BODY_LINE_LIMIT} lines; consider offloading details to references/)`);
+  }
+
+  // 6. Relative file reference check (hard error)
+  const referencedPaths = extractReferencedPaths(body);
+  for (const ref of referencedPaths) {
+    if (isRepoRootOrIgnored(ref)) {
+      continue;
+    }
+
+    const resolved = path.resolve(skillDir, ref);
+    if (!fs.existsSync(resolved)) {
+      errors.push(`Broken relative reference: "${ref}" (file not found in skill folder)`);
+    }
+  }
+
+  // 7. Cross-skill handoff check (warning)
+  const slashCommands = extractSlashCommands(body);
+  for (const cmd of slashCommands) {
+    // If it's a known unix system path or common word, skip
+    if (SYSTEM_DIRS.has(cmd)) {
+      continue;
+    }
+    // If command doesn't exist in skills/ and is not the current skill
+    if (cmd !== dirName && !availableSkillDirs.has(cmd)) {
+      warnings.push(`Cross-skill reference: "/${cmd}" is referenced, but skill "skills/${cmd}" does not exist`);
+    }
+  }
+
+  const status = errors.length > 0 ? 'FAIL' : warnings.length > 0 ? 'WARN' : 'PASS';
+  return {
+    skillName: dirName,
+    status,
+    errors,
+    warnings,
+  };
+}
+
+/**
+ * Extracts relative file references from markdown links and backticks.
+ */
+function extractReferencedPaths(markdown) {
+  const refs = new Set();
+
+  // 1. Markdown links: [text](path)
+  const linkRegex = /\[[^\]]*\]\(([^)]+)\)/g;
+  let match;
+  while ((match = linkRegex.exec(markdown)) !== null) {
+    const target = match[1].trim();
+    const cleanPath = target.split('#')[0].split('?')[0].trim();
+    if (isLikelyRelativeFilePath(cleanPath)) {
+      refs.add(cleanPath);
+    }
+  }
+
+  // 2. Backticks: `path/to/file.ext` or `./file.ext`
+  const codeRegex = /`([^`\n]+)`/g;
+  while ((match = codeRegex.exec(markdown)) !== null) {
+    const candidate = match[1].trim();
+    const cleanPath = candidate.split('#')[0].split('?')[0].trim();
+    if (isLikelyRelativeFilePath(cleanPath)) {
+      refs.add(cleanPath);
+    }
+  }
+
+  return Array.from(refs);
+}
+
+function isLikelyRelativeFilePath(p) {
+  if (!p) return false;
+  // Ignore URLs, emails, protocols, anchors
+  if (/^[a-z][a-z0-9+.-]*:/i.test(p) || p.startsWith('//') || p.startsWith('#')) {
+    return false;
+  }
+  // Ignore CLI commands, parameters, flags, template placeholders
+  if (/\s/.test(p) || p.startsWith('-') || p.startsWith('{{') || p.endsWith('}}')) {
+    return false;
+  }
+  // Ignore absolute filesystem paths starting with /
+  if (p.startsWith('/')) {
+    return false;
+  }
+
+  // Must match explicit relative path or path with directory and file extension
+  if (p.startsWith('./') || p.startsWith('../')) {
+    return true;
+  }
+  if (p.startsWith('references/') || p.startsWith('flow/') || p.startsWith('assets/') || p.startsWith('examples/')) {
+    return true;
+  }
+  if (p.includes('/') && /\.[a-z0-9_-]+$/i.test(p)) {
+    return true;
+  }
+
+  return false;
+}
+
+function isRepoRootOrIgnored(ref) {
+  const normalized = ref.replace(/^[./\\]+/, '').toLowerCase();
+  const base = path.basename(normalized);
+
+  if (REPO_ROOT_IGNORES.has(base)) return true;
+  if (normalized.startsWith('docs/') || normalized.startsWith('scripts/') || normalized.startsWith('templates/')) {
+    return true;
+  }
+  if (normalized.startsWith('skills/')) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Extracts slash commands (e.g., /architect, /test, /audit).
+ */
+function extractSlashCommands(markdown) {
+  const commands = new Set();
+  // Slash commands start with / followed by valid skill-name characters
+  // Preceded by boundary (start of line, space, paren, bracket, quote, backtick)
+  // Not followed by another slash (not a path like /usr/bin or /foo/bar)
+  const slashRegex = /(?:^|[\s(`'"])(\/([a-z0-9]+(?:-[a-z0-9]+)*))(?=[^\w\/-]|$)/g;
+  let match;
+  while ((match = slashRegex.exec(markdown)) !== null) {
+    const fullMatch = match[1];
+    const cmd = match[2];
+    // Check it's not a path (e.g. followed immediately by /)
+    const afterIndex = match.index + match[0].length;
+    if (markdown[afterIndex] === '/') {
+      continue;
+    }
+    // Also ignore if preceded by : or / (part of URL)
+    const beforeIndex = match.index;
+    if (beforeIndex > 0 && (markdown[beforeIndex - 1] === ':' || markdown[beforeIndex - 1] === '/')) {
+      continue;
+    }
+    commands.add(cmd);
+  }
+  return Array.from(commands);
+}
+
+/**
+ * Main execution.
+ */
+export function runValidation() {
+  if (!fs.existsSync(SKILLS_DIR)) {
+    fs.mkdirSync(SKILLS_DIR, { recursive: true });
+  }
+
+  const entries = fs.readdirSync(SKILLS_DIR, { withFileTypes: true });
+  const skillDirs = entries
+    .filter(entry => entry.isDirectory() && !entry.name.startsWith('.'))
+    .map(entry => entry.name)
+    .sort();
+
+  const availableSkillSet = new Set(skillDirs);
+
+  if (skillDirs.length === 0) {
+    console.log('\n================================================================================');
+    console.log('Skill Validator (agentskills.io spec)');
+    console.log('================================================================================');
+    console.log('No skills found in skills/ directory.');
+    console.log('Summary: 0 skills scanned | 0 passed | 0 warnings | 0 failed');
+    console.log('================================================================================\n');
+    return { success: true, count: 0, passed: 0, warned: 0, failed: 0 };
+  }
+
+  const results = skillDirs.map(dir => validateSkill(dir, availableSkillSet));
+
+  // Print results table
+  console.log('\n================================================================================');
+  console.log('Skill Validator (agentskills.io spec)');
+  console.log('================================================================================');
+  console.log(
+    padEnd('Skill', 28) +
+    padEnd('Status', 10) +
+    'Details'
+  );
+  console.log('-'.repeat(80));
+
+  let passedCount = 0;
+  let warnedCount = 0;
+  let failedCount = 0;
+
+  for (const res of results) {
+    const statusLabel =
+      res.status === 'PASS' ? '\x1b[32mPASS\x1b[0m' :
+      res.status === 'WARN' ? '\x1b[33mWARN\x1b[0m' :
+      '\x1b[31mFAIL\x1b[0m';
+
+    const plainStatus = res.status;
+    let details = [];
+
+    if (plainStatus === 'PASS') {
+      passedCount++;
+      details.push('All checks passed');
+    } else if (plainStatus === 'WARN') {
+      warnedCount++;
+      details = res.warnings.map(w => `• [WARN] ${w}`);
+    } else {
+      failedCount++;
+      details = [
+        ...res.errors.map(e => `• [ERROR] ${e}`),
+        ...res.warnings.map(w => `• [WARN] ${w}`),
+      ];
+    }
+
+    const firstDetail = details[0] || '';
+    console.log(
+      padEnd(res.skillName, 28) +
+      padEnd(statusLabel, 19) + // accounts for ANSI escape sequences length
+      firstDetail
+    );
+
+    for (let i = 1; i < details.length; i++) {
+      console.log(' '.repeat(38) + details[i]);
+    }
+  }
+
+  console.log('-'.repeat(80));
+  console.log(
+    `Summary: ${results.length} scanned | ` +
+    `${passedCount} passed | ` +
+    `${warnedCount} warning(s) | ` +
+    `${failedCount} failed`
+  );
+  console.log('================================================================================\n');
+
+  const hasHardErrors = failedCount > 0;
+  return {
+    success: !hasHardErrors,
+    count: results.length,
+    passed: passedCount,
+    warned: warnedCount,
+    failed: failedCount,
+  };
+}
+
+function padEnd(str, length) {
+  return str + ' '.repeat(Math.max(0, length - str.length));
+}
+
+// Run CLI directly if invoked as script
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename);
+if (isMain) {
+  const outcome = runValidation();
+  process.exit(outcome.success ? 0 : 1);
+}

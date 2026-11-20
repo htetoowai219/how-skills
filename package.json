@@ -1,0 +1,22 @@
+{
+  "name": "personal-agent-skills",
+  "version": "1.0.0",
+  "description": "Personal Agent Skills repository compatible with agentskills.io and npx skills",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate": "node scripts/validate-skills.mjs",
+    "new": "node scripts/new-skill.mjs",
+    "sync-readme": "node scripts/sync-readme.mjs",
+    "list": "node scripts/sync-readme.mjs --list"
+  },
+  "keywords": [
+    "agent-skills",
+    "agentskills",
+    "claude-code",
+    "cursor",
+    "codex",
+    "gemini-cli"
+  ],
+  "license": "MIT"
+}
