@@ -12,11 +12,12 @@ allowed-tools:
   - run_command
   - write_file
   - edit_file
+  - ask_question
 ---
 
 # README Writer
 
-Author and overhaul project `README.md` files through silent codebase inspection, a structured two-round interactive grill, and authentic human developer voice principles.
+Author and overhaul project `README.md` files through silent codebase inspection, an interactive picker-first grill, and authentic human developer voice principles.
 
 ---
 
@@ -53,16 +54,21 @@ Inspected repository:
 • Existing assets: [e.g., Logo at assets/logo.svg, no screenshots found]
 • Configuration: [e.g., 5 required env vars in .env.example, Prisma migrations detected]
 ```
-Present the 6 Round 1 choices (Style, Emojis, Hero alignment, Badges, Secondary details, Conditional setup) with a recommended default for each. Provide the fast-path prompt:
-> *"Reply with your choices (e.g., `Technical, Headings only, defaults for 3-6`) or reply `defaults` to accept all recommendations."*
 
-Wait for the user's reply before proceeding.
+**Interactive Tool First Rule:**
+- **MUST call the runtime's interactive question tool** (`ask_question` in Antigravity, `question` in OpenCode, `AskUserQuestion` in Claude Code, `request_user_input` in Codex) whenever available in the active toolset.
+- Present atomic single-decision questions formatted for TUI arrow-key pickers:
+  - Short header (`<= 16` chars, e.g. `README Style`, `Section Emojis`, `Hero Alignment`, `Status Badges`, `Overflow Detail`).
+  - 2–4 clean options per question with the repository-recommended pick first (marked `(Recommended)`).
+  - Keep questions in a tight batch (3–4 per tool call) so navigation stays snappy.
+- **Fallback:** If and only if no interactive tool is present in the runtime, output a plain numbered checklist with defaults and wait for user response.
 
 ### Phase 3 — Round 2 Grill (Substance & Human Context)
-Using the style selected in Round 1 (`Casual`, `Technical`, or `Detailed`), ask 3 to 5 high-leverage substance questions from [Interview & Styles](references/interview-and-styles.md):
-- **Casual:** Origin backstory, daily driver usage, rough edges/quirks.
-- **Technical:** Problem focus vs. architecture focus, hardest engineering trade-offs, reviewer demo accounts/credentials, roadmap.
-- **Detailed:** Primary audience, external dependencies/webhooks, architecture boundaries, deployment environments, operational gotchas.
+Using the style selected in Round 1 (`Casual`, `Technical`, or `Detailed`), ask targeted substance questions from [Interview & Styles](references/interview-and-styles.md):
+- **Interactive Picker First:** Present atomic questions with `(Recommended)` options alongside `Skip / None` or freeform inputs.
+- **Casual:** Backstory inclusion (`Include short backstory` vs `Skip`), usage focus, known rough edges.
+- **Technical:** Spotlight balance (`Balanced` vs `Architecture deep-dive` vs `Problem focus`), live demo links, roadmap (`Skip` vs `Include 3-item Next Up`).
+- **Detailed:** Primary audience, deployment target (`Docker Compose` vs `Cloud PaaS` vs `Kubernetes`), operational gotchas.
 - **Pushback Rule:** If an answer is vague or marketing copy ("faster and more robust"), push back once for concrete mechanics ("Faster than what, and how? e.g., Redis caching vs. SQLite?"). Keep follow-up to one brief message.
 - **Fast-Path Rule:** If the user specifies "skip questions" or "use defaults", skip Round 2 and apply sensible defaults immediately.
 

@@ -12,6 +12,7 @@ allowed-tools:
   - run_command
   - edit_file
   - write_file
+  - ask_question
 ---
 
 # Frontend Architecture (Boilerplate & Wiring Only)
@@ -39,22 +40,51 @@ Before reading reference files or writing code, silently inspect `package.json` 
 
 ## 2. Phase 1: Anti-Bloat Grill Gate (Mode A Only)
 
-Output a 2-line detection summary, then ask this single numbered checklist (omitting anything already present in `package.json` or specified in the prompt):
-
+Output a 2-line detection summary first:
 ```text
 Detected: [Vite / Next.js] | Package Manager: [npm / pnpm / bun] | Installed: [e.g. react, tailwindcss]
-
-Frontend Architecture Configuration:
-1. State Management: Zustand [default] / React state only / Redux
-2. API Client: Axios (Cookie withCredentials) [default] / Axios (Bearer token) / Native fetch / None
-3. Forms & Validation: React Hook Form + Zod [default] / Basic controlled inputs / None
-4. Styling Config (setup only, zero UI design): Tailwind + DaisyUI [default] / Tailwind + shadcn/ui / Plain Tailwind / Keep existing
-5. Layout Shell: Mobile-first bare layout shell [default] / Desktop-only bare layout shell / None (blank stubs)
-6. Routing & Auth Guards (Vite only): react-router-dom [default] — include protected route wrapper? (No [default] / Yes)
 ```
 
-**Fast-Path Prompt:**  
-> *"Reply in one line (e.g. `Zustand, Axios cookies, RHF+Zod, DaisyUI, mobile shell, protected route`) or say `defaults`."*
+### Interactive Tool First Rule
+- **MUST call the runtime's interactive question tool** (`ask_question` in Antigravity, `question` in OpenCode, `AskUserQuestion` in Claude Code, `request_user_input` in Codex) whenever available in the active toolset.
+- Present atomic single-decision questions formatted for TUI arrow-key pickers with headers `<= 16` chars and `(Recommended)` options listed first.
+- Deliver in tight batches (3 questions max per tool call) so navigation stays snappy.
+- **Fallback:** If and only if no interactive tool is present in the runtime, output a plain numbered checklist with defaults and wait for user response.
+
+### Batch 1: State, API & Forms (Atomic TUI Questions)
+
+#### 1. Header: `State Tool`
+- `(Recommended) Zustand: Store boilerplate with async actions and persist middleware`
+- `React state only: Built-in useState and useReducer, zero extra dependencies`
+- `Redux Toolkit: Centralized store with slices and typed hooks`
+
+#### 2. Header: `API Client`
+- `(Recommended) Axios (Cookies): withCredentials: true for HTTP-only session cookies`
+- `Axios (Bearer): Authorization header interceptor for access tokens`
+- `Native fetch: Browser fetch wrapper without Axios dependency`
+- `None: No dedicated API client`
+
+#### 3. Header: `Forms & Schema`
+- `(Recommended) RHF + Zod: React Hook Form with zodResolver and typed schemas`
+- `Basic controlled: Native inputs with standard React state`
+- `None: No form scaffolding`
+
+### Batch 2: Styling, Shell & Routing (Atomic TUI Questions)
+
+#### 4. Header: `Styling Config`
+- `(Recommended) Tailwind + DaisyUI: Tailwind v4 with CSS-first @plugin 'daisyui'`
+- `Tailwind + shadcn/ui: Tailwind v4 with cn() utility and CSS variables`
+- `Plain Tailwind v4: Pure Tailwind CSS without component libraries`
+- `Keep existing: Do not modify current CSS setup`
+
+#### 5. Header: `Layout Shell`
+- `(Recommended) Mobile-first bare shell: Responsive header, main outlet, and sticky footer`
+- `Desktop-only bare shell: Standard container header, main outlet, and footer`
+- `None: Raw page stubs without a shared layout wrapper`
+
+#### 6. Header: `Route Guards` *(Vite only)*
+- `(Recommended) None: Standard open routing without auth checks`
+- `ProtectedRoute wrapper: Checks user session and redirects to /login`
 
 - **Wait for the user's response** before loading `references/opt-*.md` files or installing packages.
 - Skip the grill **only** if the user already specified choices or said *"skip questions / use defaults"*.

@@ -18,87 +18,92 @@ Never ask the user for information already visible in repository files:
 
 ## 2. Round 1 — Style, Structure & Visual Formatting Grill
 
-Before presenting Round 1, print a concise 3-line disk summary:
+### Interactive Tool First Rule
+1. **Always print the 3-line disk summary first** to contextualize choices:
 ```text
 Inspected repository:
 • Detected: [Archetype & Tech, e.g. Node.js + Express + TypeScript, Docker Compose (Postgres, Redis)]
 • Existing assets: [e.g. Logo found at assets/logo.svg, no screenshots found]
 • Configuration: [e.g. 6 required env vars in .env.example, Prisma migration script found]
 ```
+2. **MUST call the runtime's interactive question tool** (`ask_question` in Antigravity, `question` in OpenCode, `AskUserQuestion` in Claude Code, `request_user_input` in Codex) whenever available.
+3. Pass questions in tight batches (3–4 atomic questions max per tool call) with short headers (`<= 16` chars) and the repo-recommended option listed first (marked `(Recommended)`).
+4. **Fallback:** If no interactive tool is available in the runtime, output the questions as a numbered text checklist and await user reply.
 
-Then present the 6 Round 1 questions with your recommended default for each:
+### Batch 1: Core Style & Visuals (Atomic TUI Questions)
 
-1. **README Style** *(Recommended: [infer from repo size and structure])*:
-   - `Casual` — Relaxed hobby/personal tool tone; quick setup, optional short backstory (~80–140 lines).
-   - `Technical` — Hackathon/portfolio showcase; spotlights engineering decisions, architecture, and trade-offs (~120–200 lines).
-   - `Detailed` — Production/team system; full architecture overview, split configuration, deployment, and operational runbook (~160–260 lines).
-2. **Emojis in Section Headings & Lists** *(Recommended: None)*:
-   - `None` — Pure text headers, clean and restrained (default).
-   - `Headings only` — Exactly one tasteful emoji at the start of each `## ` section heading.
-   - `Headings + features` — Heading emojis plus leading icon bullets on Key Features.
-3. **Hero Layout & Visuals** *(Recommended: Centered)*:
-   - Alignment: `Centered` (centered title, subtitle, badges, and logo) vs. `Left-aligned`.
-   - Visuals: Use detected image, provide an external image/demo GIF URL, or use text-only?
-   - Quick Links: Any live demo URL, video walkthrough, or documentation link to feature in the hero?
-4. **Badges** *(Recommended: Minimal flat-square)*:
-   - `Minimal flat-square` — 3 to 4 neutral, verified badges (license, runtime version, CI status if present).
-   - `Standard shields` — Colored shields.io badges.
-   - `None` — No badges.
-5. **Secondary Details Strategy** *(Recommended: Collapsible `<details>`)*:
-   - `Collapsible <details>` — Fold long env tables, project layout trees, or alternate run commands.
-   - `Link to docs/` — Keep README ultra-lean and link out to files in `docs/`.
-   - `Inline` — Show all content directly without folding.
-6. **Conditional Setup Preference** *(Only ask if relevant)*:
-   - *If Docker Compose exists:* Make Docker the primary Quick Start step, or keep local dev primary and put Docker in its own `## Docker Setup` section? *(Recommended: Local dev primary unless full-stack compose is present)*
-   - *If an existing README exists:* Full rewrite from scratch (preserving live URLs & credits), or preserve specific custom sections? *(Recommended: Full rewrite preserving verified live links)*
+#### 1. Header: `README Style`
+- `(Recommended) Technical: Focus on architecture, engineering trade-offs, and design (~120–200 lines)` *(or infer Casual/Detailed)*
+- `Casual: Relaxed personal tool with quick setup and backstory (~80–140 lines)`
+- `Detailed: Production system with architecture, full config, and ops notes (~160–260 lines)`
 
-**Fast-Path Prompt:** End Round 1 with:  
-> *"Reply with your choices (e.g., `Technical, Headings only, defaults for 3-6`) or reply `defaults` to accept all recommendations."*
+#### 2. Header: `Section Emojis`
+- `(Recommended) None: Clean plain-text headings (0 emojis)`
+- `Headings only: Exactly 1 tasteful emoji at the start of each ## heading`
+- `Headings + features: Heading emojis plus clean icon bullets on key features`
+
+#### 3. Header: `Hero Alignment`
+- `(Recommended) Centered: Centered title, subtitle, badges, and logo`
+- `Left-aligned: Standard markdown left-aligned header`
+
+#### 4. Header: `Status Badges`
+- `(Recommended) Minimal flat-square: 3–4 neutral verified badges (license, runtime, build)`
+- `Standard shields: Colored shields.io badges`
+- `None: No badges at all`
+
+### Batch 2: Secondary Strategy & Setup (Atomic TUI Questions)
+
+#### 5. Header: `Overflow Detail`
+- `(Recommended) Collapsible <details>: Fold long tables, layouts, or alt commands`
+- `Inline: Show all tables, trees, and commands directly in the body`
+- `Link to docs/: Keep README lean and link out to separate docs/ files`
+
+#### 6. Header: `Docker Setup` *(Only ask if Docker Compose is detected)*
+- `(Recommended) Local first: Quick Start runs on host; Docker in ## Docker Setup section`
+- `Docker first: Docker Compose is the primary Quick Start step`
+- `Exclude Docker: Omit container instructions from README`
 
 ---
 
-## 3. Round 2 — Style-Specific Content Grill
+## 3. Round 2 — Style-Specific Substance Grill
 
-After the user locks in their style and formatting in Round 1, ask 3 to 5 targeted substance questions from the corresponding bank below. Skip any question already answered in previous turns.
+After Round 1 is locked, invoke the interactive question tool with 2 to 3 atomic substance questions tailored to the chosen style. Include a `Skip / None` option on non-mandatory questions.
 
 ### Style A: `Casual` (Hobby / Personal Tool)
-*Tone: Relaxed, authentic first-person developer voice ("I built this because...", "Tested on Linux; macOS should work too").*
+*Tone: Relaxed, authentic first-person developer voice.*
 
-1. **Origin Backstory (Optional):** Do you want a short `## Why I Built This` section (2–3 sentences)? If yes, what specific frustration, missing tool, or curiosity prompted it?
-2. **Daily Driver Usage:** How do you personally use this tool day-to-day, or what is the single most useful command/workflow someone should try first?
-3. **Known Quirks & Rough Edges:** Are there known quirks, platform assumptions, or unfinished corners someone cloning the repo should be aware of?
-4. **Exclusions:** Anything specific you want explicitly omitted so the README stays lightweight and informal?
+1. **Header: `Origin Story`**
+   - `(Recommended) Include backstory: Add a 2–3 sentence ## Why I Built This section`
+   - `Skip backstory: Jump straight from Quick Start to features`
+2. **Header: `Usage Focus`**
+   - `(Recommended) Core workflow: Highlight primary CLI command or UI interaction`
+   - `All features: Even bullet points of what it does`
 
-**Casual Section Plan:**  
-`Hero -> Quick Start -> Why I Built This (optional) -> What It Does (3–5 bullets) -> Configuration (if env exists) -> Docker (only if present) -> Common Commands -> License`
+### Style B: `Technical` (Hackathon / Serious Showcase)
+*Tone: Engineer-to-engineer; precise, direct, zero buzzwords.*
 
----
+1. **Header: `Spotlight Focus`**
+   - `(Recommended) Balanced: Both the problem solved and the technical architecture`
+   - `Architecture first: Deep dive into internal mechanics and data flow`
+   - `Problem first: Focus on why the tool was needed and user outcomes`
+2. **Header: `Reviewer Demo`**
+   - `(Recommended) None / Local only: Reviewers run the app locally`
+   - `Include demo link: Prompt developer for live URL or video walkthrough`
+3. **Header: `Roadmap Section`**
+   - `(Recommended) Skip roadmap: Keep README strictly to what is built today`
+   - `Include Next Up: Add a tight 3-item roadmap section`
 
-### Style B: `Technical` (Hackathon / Serious Portfolio Showcase)
-*Tone: Engineer-to-engineer; precise, direct, zero buzzwords. Explains not just what the app does, but why it was engineered that way.*
+### Style C: `Detailed` (Commercial / Production System)
+*Tone: Authoritative, neutral technical documentation.*
 
-1. **Primary Spotlight:** Should the extra technical depth highlight the **problem being solved**, the **internal architecture/implementation**, or an even balance of both?
-2. **Hardest Engineering Pieces:** What were the 1 to 3 trickiest technical challenges or deliberate decisions worth explaining (e.g., locking/concurrency, cache invalidation, state sync, database indexing, background queues, rate limits)?
-3. **Reviewer Fast-Path:** Is there a live demo URL, video walkthrough, or pre-seeded test account (e.g., `admin@example.com / password123`) reviewers should use immediately after booting?
-4. **Deliberate Trade-Offs:** Were there intentional architectural trade-offs or scope cuts (e.g., "In-memory stores used over distributed cache for single-node simplicity") that show conscious design?
-5. **Roadmap (Optional):** Want a concise 3-item `## Next Up` list, or keep it strictly to what is currently implemented?
-
-**Technical Section Plan:**  
-`Hero (with quick links) -> Quick Start (with seed/demo login) -> Key Features -> How It Works / Engineering Notes -> Docker Setup (conditional) -> Configuration (conditional) -> Tech Stack & Layout -> Common Commands -> Roadmap (optional) -> License`
-
----
-
-### Style C: `Detailed` (Commercial / Team / Production System)
-*Tone: Authoritative, neutral technical documentation. Unambiguous prerequisites, port mappings, and operational clarity.*
-
-1. **Primary Target Audience:** Who is the first reader—engineers onboarding to develop locally, DevOps deploying the service, or external client reviewers?
-2. **External Dependencies & Third-Party Setup:** What external accounts or credentials are required before the app fully runs (OAuth applications, webhooks, Stripe keys, S3 buckets, SMTP)?
-3. **Architecture & Boundaries:** Are there distinct background workers, queues, multi-tenant boundaries, or microservice integrations that need a short component table or ASCII data flow?
-4. **Deployment & Environment Targets:** What is the target runtime deployment (Docker Compose, Kubernetes, AWS/GCP, PaaS) and are there critical env differences (dev vs. staging vs. prod)?
-5. **Operational Gotchas & Runbooks:** Any database migration rules, port collisions, backup procedures, or security gotchas an engineer needs on day one?
-
-**Detailed Section Plan:**  
-`Hero -> Quick Start -> Architecture Overview -> Docker & Deployment -> Configuration (Required vs. Optional split) -> Tech Stack & Project Structure -> Development, Testing & Commands -> Operational Notes / Troubleshooting -> License`
+1. **Header: `Target Audience`**
+   - `(Recommended) Onboarding engineers: Focus on local dev setup and codebase structure`
+   - `DevOps & SRE: Focus on container deployment, ports, and environment configs`
+   - `Client / Evaluators: Balanced overview with architecture diagram`
+2. **Header: `Deploy Target`**
+   - `(Recommended) Docker Compose: Multi-container local/VPS deployment`
+   - `Cloud PaaS: Render, Railway, Fly.io, or Heroku`
+   - `Kubernetes / Cloud: Helm, AWS ECS/EKS, or GCP`
 
 ---
 

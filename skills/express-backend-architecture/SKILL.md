@@ -12,6 +12,7 @@ allowed-tools:
   - run_command
   - edit_file
   - write_file
+  - ask_question
 ---
 
 # Express Backend Architecture
@@ -36,24 +37,50 @@ Before reading reference files or writing code, inspect the working directory to
 
 ## 2. Phase 1: Interactive Scaffold Grill (Mode A Only)
 
-Before reading any `references/opt-*.md` files or scaffolding code, present this single, structured checklist so the user can lock in requirements in one response:
+Before reading any `references/opt-*.md` files or scaffolding code, output a 2-line target path summary, then execute the **Interactive Tool First** grill:
 
 ```text
-Express Backend Scaffold Configuration:
-1. Target Path & Package Manager: Scaffold at repo root or inside server/? (npm [default] / pnpm / bun)
-2. Project Scope: Basic CRUD API only, or full application backend? (Full app backend [default])
-3. Users & Authentication:
-   • Basic JWT [default — scaffolds user model/controller/route + auth middleware]
-   • JWT Access + Refresh tokens
-   • Add Google OAuth / RBAC roles (specify roles if needed, e.g. admin, user)
-   • None (no user files or auth middleware)
-4. Image / File Uploads: Need Multer + Cloudinary? (No [default] / Yes)
-5. Redis: Need Redis client for caching or locking? (No [default] / Yes)
-6. Docker Setup: None [default] / Infra-only Compose (MongoDB + Redis) / Full Docker Compose (API + DB/Redis)
+Target Environment: [Scaffolding at repo root / server/] | Node.js ESM Architecture
 ```
 
-**Fast-Path Prompt:**  
-> *"Reply with your picks (e.g. `server/, Basic JWT, no uploads, Redis, infra-only docker`) or reply `minimal` for root + basic CRUD with no optional modules."*
+### Interactive Tool First Rule
+- **MUST call the runtime's interactive question tool** (`ask_question` in Antigravity, `question` in OpenCode, `AskUserQuestion` in Claude Code, `request_user_input` in Codex) whenever available in the active toolset.
+- Present atomic single-decision questions formatted for TUI arrow-key pickers with headers `<= 16` chars and `(Recommended)` options listed first.
+- Deliver in tight batches (3 questions per tool call) so navigation stays snappy.
+- **Fallback:** If and only if no interactive tool is present in the runtime, output a plain numbered checklist with defaults and wait for user response.
+
+### Batch 1: Core Setup (Atomic TUI Questions)
+
+#### 1. Header: `Target & PM`
+- `(Recommended) Root + npm: Scaffold at repository root with npm`
+- `server/ + npm: Scaffold inside server/ folder with npm`
+- `Root + pnpm: Scaffold at repository root with pnpm`
+- `server/ + pnpm: Scaffold inside server/ folder with pnpm`
+
+#### 2. Header: `Project Scope`
+- `(Recommended) Full API: Complete layered backend with router, db, and error pipeline`
+- `Minimal CRUD: Lightweight single-resource API baseline`
+
+#### 3. Header: `Users & Auth`
+- `(Recommended) Basic JWT: User model, controller, route, and verifyAccessToken guard`
+- `JWT + Refresh: Dual access and refresh token cookie handling`
+- `JWT + RBAC + OAuth: Role guards (admin/user) plus Google OAuth integration`
+- `None: No user model or authentication middleware`
+
+### Batch 2: Optional Modules (Atomic TUI Questions)
+
+#### 4. Header: `File Uploads`
+- `(Recommended) None: No file upload handling`
+- `Multer + Cloudinary: In-memory upload middleware and Cloudinary streaming helpers`
+
+#### 5. Header: `Redis Caching`
+- `(Recommended) None: No Redis client`
+- `Redis Client: Connection manager, get/set helpers, and cache-aside pattern`
+
+#### 6. Header: `Docker Setup`
+- `(Recommended) None: Host-only execution without container files`
+- `Infra-only Compose: docker-compose.yml for MongoDB and Redis containers`
+- `Full Docker Compose: Multi-stage Dockerfile + compose for API and databases`
 
 - **Wait for the user's response** before loading optional references or generating files.
 - Skip the grill **only** if the user already specified all requirements in their prompt or explicitly said *"skip questions / use defaults"*.
@@ -75,11 +102,15 @@ Express Backend Scaffold Configuration:
 
 ## 4. Phase 3: Post-Scaffold Resource Offer (Mode A Mandatory Step)
 
-After completing the base scaffold and verifying clean compilation (`npm run build` or `npm run typecheck`), summarize the generated structure and conclude with this exact prompt:
+After completing the base scaffold and verifying clean compilation (`npm run build` or `npm run typecheck`), summarize the generated structure.
 
-> *"Base scaffold is ready. Would you like me to generate any extra CRUD resource bundles (model + controller + route + validation, wired into your main router)? If yes, list the resource names and any rough fields or auth rules (e.g., `task: title, status, dueDate [auth]` or `category: name [admin only]`)."*
+**Interactive Tool First:**
+Invoke the interactive question tool (or text fallback) to offer domain resource generation:
+- **Header: `Extra Resources`**
+  - `(Recommended) None: Complete baseline only (no extra resources)`
+  - `Generate CRUD: Add resource bundles (model + controller + route + validation)`
 
-When the user provides resource names, read [CRUD Vertical Slice](references/crud-slice.md) (if not already loaded) and generate each resource following our layered conventions.
+If the user selects `Generate CRUD` (or replies with resource names), prompt for resource names and any rough fields or auth rules (e.g., `task: title, status, dueDate [auth]`), load [CRUD Vertical Slice](references/crud-slice.md), and wire each bundle into `src/routes/index.ts`.
 
 ---
 
