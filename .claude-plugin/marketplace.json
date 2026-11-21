@@ -32,6 +32,7 @@
         "./dockerize",
         "./express-backend-architecture",
         "./express-to-nest",
+        "./fix-issue",
         "./frontend-architecture",
         "./readme-writer",
         "./wire"
