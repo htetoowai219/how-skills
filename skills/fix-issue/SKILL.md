@@ -1,6 +1,6 @@
 ---
 name: fix-issue
-description: Resolves GitHub issues end-to-end: fetches context, inspects codebase, resolves ambiguity via interactive gate, implements fix on a dedicated branch, verifies locally, and opens a PR upon explicit approval. Do NOT use for untracked repos, direct default branch commits, or unapproved PR creation.
+description: "Resolves GitHub issues end-to-end: fetches context, inspects codebase, resolves ambiguity via interactive gate, implements fix on a dedicated branch, verifies locally, and opens a PR upon explicit approval. Do NOT use for untracked repos, direct default branch commits, or unapproved PR creation."
 license: MIT
 compatibility: Designed for Agent Skills-compatible tools (Claude Code, Cursor, Codex, Gemini CLI, OpenCode)
 metadata:
