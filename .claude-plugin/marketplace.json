@@ -5,35 +5,39 @@
   },
   "plugins": [
     {
-      "name": "jsm-skills",
-      "description": "Curated workflow skills vendored from JavaScript Mastery",
+      "name": "workflow-skills",
+      "description": "End-to-end project workflow skills (idea-dump, scope, architect, develop, check)",
       "source": "./skills",
       "strict": false,
       "skills": [
         "./architect",
-        "./audit",
         "./check",
-        "./debug",
         "./develop",
-        "./document",
-        "./scope",
-        "./sync",
-        "./test"
+        "./idea-dump",
+        "./scope"
       ]
     },
     {
-      "name": "how-skills",
-      "description": "Personal development skills and codebase conventions",
+      "name": "architecture-skills",
+      "description": "Stack scaffolding, migration, and codebase architecture conventions",
+      "source": "./skills",
+      "strict": false,
+      "skills": [
+        "./express-backend-architecture",
+        "./express-to-nest",
+        "./frontend-architecture"
+      ]
+    },
+    {
+      "name": "engineering-skills",
+      "description": "Focused engineering utilities for security hardening, wiring, Docker, hygiene, docs, and issue resolution",
       "source": "./skills",
       "strict": false,
       "skills": [
         "./backend-hardening",
         "./de-slop",
         "./dockerize",
-        "./express-backend-architecture",
-        "./express-to-nest",
         "./fix-issue",
-        "./frontend-architecture",
         "./readme-writer",
         "./wire"
       ]

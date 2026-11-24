@@ -15,7 +15,7 @@ const MAX_NAME_LENGTH = 64;
 
 // Filter out npm argument separator '--'
 const rawArgs = process.argv.slice(2).filter(arg => arg !== '--');
-let targetGroup = 'how-skills';
+let targetGroup = 'engineering-skills';
 const positional = [];
 
 for (let i = 0; i < rawArgs.length; i++) {
@@ -40,7 +40,7 @@ if (!skillName) {
   console.error('\nError: No skill name specified.');
   console.error('Usage: npm run new -- <skill-name> [--group <plugin-group>]');
   console.error('Example: npm run new -- code-reviewer');
-  console.error('Example: npm run new -- custom-linter --group how-skills\n');
+  console.error('Example: npm run new -- custom-linter --group engineering-skills\n');
   process.exit(1);
 }
 
@@ -81,7 +81,7 @@ try {
   fs.cpSync(TEMPLATE_DIR, targetDir, { recursive: true });
 
   // Process copied files to replace {{SKILL_NAME}} and clean placeholders
-  replacePlaceholdersInDir(targetDir, skillName, targetGroup);
+  replacePlaceholdersInDir(targetDir, skillName);
 
   // Register into .claude-plugin/marketplace.json
   registerInMarketplace(skillName, targetGroup);
@@ -149,21 +149,17 @@ function registerInMarketplace(name, group) {
   }
 }
 
-function replacePlaceholdersInDir(dirPath, name, group) {
+function replacePlaceholdersInDir(dirPath, name) {
   const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-  const sourceVal = group === 'jsm-skills' ? 'jsmastery-pro/skills' : 'custom';
 
   for (const entry of entries) {
     const fullPath = path.join(dirPath, entry.name);
     if (entry.isDirectory()) {
-      replacePlaceholdersInDir(fullPath, name, group);
+      replacePlaceholdersInDir(fullPath, name);
     } else if (entry.isFile()) {
       if (/\.(md|txt|json|yaml|yml)$/i.test(entry.name)) {
         let content = fs.readFileSync(fullPath, 'utf8');
         content = content.replaceAll('{{SKILL_NAME}}', name);
-        if (entry.name === 'SKILL.md') {
-          content = content.replace(/source:\s*custom/, `source: ${sourceVal}`);
-        }
         content = content.replace(/<!--\s*TEMPLATE_ONLY[\s\S]*?\/TEMPLATE_ONLY\s*-->/g, '');
         fs.writeFileSync(fullPath, content, 'utf8');
       }

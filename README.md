@@ -56,13 +56,28 @@ how-agent-skills/
 │   ├── validate-skills.mjs # Validates frontmatter, links, line limits, and categories
 │   └── sync-readme.mjs     # Generates and updates the catalog table below
 ├── skills/                 # Flat skill folders (never nested)
-│   ├── architect/          # Curated workflow skill
-│   │   └── SKILL.md        # Entry point capped under 500 lines
+│   ├── architect/          # Project workflow skill with references/
+│   │   ├── SKILL.md        # Entry point capped under 500 lines
+│   │   └── references/
 │   └── readme-writer/      # Personal convention skill with references/
 │       ├── SKILL.md
 │       └── references/     # Progressive disclosure docs and templates
 └── templates/              # Base scaffold for new skills
 ```
+
+### 5-Skill Project Workflow (`workflow-skills`)
+
+The workflow skills guide a project from raw thoughts to verified code through a single shared state directory (`docs/scope/`), scaling ceremony to match a **Project Mode** gate (`Casual / Hobby` 1–3 phases · `Prototype / MVP` 2–4 phases · `Production / Commercial` 4–7 phases):
+
+```text
+/idea-dump ──> /scope ──> /architect ──> /develop ──> /check (verify & review)
+```
+
+- **`idea-dump`** → Organizes messy brain dumps faithfully in chat without inventing features or picking stacks, then writes `docs/scope/idea.md`.
+- **`scope`** → Applies the Project Mode size gate, merges small tasks into cohesive phases, confirms the roadmap in chat, and writes `docs/scope/SCOPE.md`.
+- **`architect`** → Checks stack choices per phase, resolves design trade-offs (strictly plan-only, zero code), confirms in chat, and writes `docs/scope/plans/<NN-slug>.md`.
+- **`develop`** → Implements strictly from `docs/scope/plans/<NN-slug>.md` at Project Mode rigor, runs build/typecheck checks, and marks the phase `Developed`.
+- **`check`** → `/check verify` audits plan conformance, system integration, and runtime/build commands before marking `SCOPE.md` `Verified`; `/check review` runs a senior diff review into `docs/reviews/`.
 
 ### Engineering Trade-Offs
 
@@ -76,11 +91,11 @@ The repository includes scripts to scaffold, test, and index skills.
 
 ### 1. Scaffold a New Skill
 ```bash
-# Default group: how-skills
+# Default group: engineering-skills
 npm run new -- <skill-name>
 
 # Or specify a target group explicitly
-npm run new -- <skill-name> --group jsm-skills
+npm run new -- <skill-name> --group workflow-skills
 ```
 This copies `templates/skill-template/` into `skills/<skill-name>/`, sets up standard frontmatter, and registers the folder in `.claude-plugin/marketplace.json`.
 
@@ -110,40 +125,43 @@ npm run list
 ## Skill Catalog
 
 <!-- SKILLS_TABLE_START -->
-### jsm-skills
+### workflow-skills
 
-*Curated workflow skills vendored from JavaScript Mastery*
+*End-to-end project workflow skills (idea-dump, scope, architect, develop, check)*
 
 | Skill | Description |
 |---|---|
-| [`architect`](skills/architect/SKILL.md) | Run /architect when choosing between approaches, designing a feature or page, picking a tech stack, or when implementation workflows say a decision is owed, anytime a load bearing technical decision is unmade. Asks deep questions, recommends an answer, and writes a build spec to docs/specs/. Owns all spec files. |
-| [`audit`](skills/audit/SKILL.md) | Run /audit on a greenfield project, an existing codebase with missing docs, or one area (/audit src/auth) to bootstrap the project's AI context, the AGENTS.md files every later skill reads. Writes tool agnostic AGENTS.md plus thin CLAUDE.md pointers, adding only what is missing; never overwrites curated content. |
-| [`check`](skills/check/SKILL.md) | Confirm a change before merge. `/check verify` drives the real app to prove behavior against the spec (every acceptance criterion met, every surface built). `/check review` runs a senior code review on a fresh model, one that did not write the code. Verify after implementation, review before a PR. Writes to docs/reviews/, never edits code. |
-| [`debug`](skills/debug/SKILL.md) | Run /debug to find and fix a bug's root cause: a test failing for an unclear reason, /check verify finding a failure, or behavior being wrong. Runs a reproduce, localize, hypothesize, test, fix, verify loop, makes the minimal fix, and adds a regression test. No features, no extra refactors. |
-| [`develop`](skills/develop/SKILL.md) | Run /develop to build a feature, UI or backend, from an approved design, a page, component, API, service, or data slice. If something load bearing is undecided and no spec records it, it stops and routes you to /architect; otherwise it reads the spec plus AGENTS.md, builds, and advances the scope. |
-| [`document`](skills/document/SKILL.md) | Run /document `pr` \| `changelog` \| `release-note` \| `postmortem` (or let it ask) to write the human facing prose about a change. Drafts from the real commits and diff, writing to the right place. Does not write code, tests, or specs. |
-| [`scope`](skills/scope/SKILL.md) | Run /scope to turn a product idea into a living, coarse scope in docs/scope/ and keep it current: plan a new product, plan the next slice, enroll one named feature, or run with no argument to reconcile after shipping and queue what is next. Seeds WHAT to build; /architect designs, /develop builds. |
-| [`sync`](skills/sync/SKILL.md) | Run /sync as the last step after a change is complete, around merge, to keep durable knowledge current. Updates root and nested AGENTS.md, reconciles the scope from repo evidence, and flags specs the change made stale. Surgical edits only: it adds lines, and rewrites single lines it owns. Never a whole section, never curated prose. |
-| [`test`](skills/test/SKILL.md) | Run /test to write a test suite for code you just built or changed, after implementing a feature, route, or fix. Targets uncommitted changes automatically, reads test preferences.json for your framework (asks and saves it if absent), and picks the right strategy per file: happy path, edge cases, error states, accessibility. |
+| [`architect`](skills/architect/SKILL.md) | Designs a phase or feature before coding—checking stack choices, resolving technical trade-offs calibrated to Project Mode, confirming the design in chat, and writing an actionable plan to docs/scope/plans/<NN-slug>.md. Strictly plan-only (writes zero app code). Do NOT use for raw brain dumps (/idea-dump), high-level phase roadmaps (/scope), or implementing code (/develop). |
+| [`check`](skills/check/SKILL.md) | Audits and verifies implemented work before marking a phase complete or merging. `/check verify <Phase>` proves implementation against docs/scope/plans/<NN-slug>.md, system integration, and build/test commands (respecting Project Mode) before marking SCOPE.md Verified. `/check review` runs a senior diff review and writes findings to docs/reviews/. Do NOT use for planning (/architect) or building new features (/develop). |
+| [`develop`](skills/develop/SKILL.md) | Implements a planned phase or feature strictly from its approved plan in docs/scope/plans/<NN-slug>.md, keeping code complexity proportional to Project Mode, running build/typecheck sanity checks, and updating status to Developed. Hard-stops if no plan doc exists. Do NOT use for scoping (/scope), architecture planning (/architect), or final verification sign-off (/check). |
+| [`idea-dump`](skills/idea-dump/SKILL.md) | Turns a messy, unorganized project brain dump into a clean, faithful idea brief at docs/scope/idea.md through an interactive chat loop before scoping. Trigger when starting a new project from raw thoughts, voice notes, or scattered ideas. Do NOT use for phase roadmaps (/scope), technical specs or stack selection (/architect), or writing code (/develop). |
+| [`scope`](skills/scope/SKILL.md) | Turns an idea brief (docs/scope/idea.md) or product description into a right-sized, living phase roadmap in docs/scope/SCOPE.md, or reconciles progress when run with no arguments. Enforces a Project Mode size gate so small builds stay lean. Do NOT use for raw brain-dump cleanup (/idea-dump), technical architecture or stack selection (/architect), or writing code (/develop). |
 
-### how-skills
+### architecture-skills
 
-*Personal development skills and codebase conventions*
+*Stack scaffolding, migration, and codebase architecture conventions*
+
+| Skill | Description |
+|---|---|
+| [`express-backend-architecture`](skills/express-backend-architecture/SKILL.md) | Scaffolds, extends, and refactors modular Express.js TypeScript backends conforming to our production conventions (Mongoose, layered separation, asyncHandler, ApiError, clean response envelopes, and token-safe modular lazy-loading). Trigger when scaffolding a new Express backend from scratch, adding vertical CRUD resource bundles, or integrating optional modules (JWT auth/RBAC, Multer/Cloudinary uploads, Redis caching, Docker). Do NOT use for frontend code, NestJS apps, Next.js API routes, or non-Express scripts. |
+| [`express-to-nest`](skills/express-to-nest/SKILL.md) | Migrate an Express.js TypeScript backend to a modular NestJS application with 100% API contract fidelity, matching Mongoose schemas, Cloudinary/Multer handling, JWT cookies, and security configurations. |
+| [`frontend-architecture`](skills/frontend-architecture/SKILL.md) | Configures boilerplate architecture, routing, API client, Zustand stores, React Hook Form + Zod, and styling setup in freshly scaffolded React (Vite) or Next.js projects, and wires unstyled structural page and form stubs. Trigger when setting up frontend project conventions, adding state/API/form boilerplate, or wiring functional page shells. Do NOT use for visual UI/UX design, custom theme styling, decorative components, backend Express/NestJS code, React Native, or generating base Vite/Next projects from scratch. |
+
+### engineering-skills
+
+*Focused engineering utilities for security hardening, wiring, Docker, hygiene, docs, and issue resolution*
 
 | Skill | Description |
 |---|---|
 | [`backend-hardening`](skills/backend-hardening/SKILL.md) | Audits backend APIs for security, IDOR/RBAC, mass assignment, data leaks, injection, uploads, rate limits, and DB indexes. Do NOT use for frontend UI, CSS, or scaffolding new features. |
 | [`de-slop`](skills/de-slop/SKILL.md) | Removes AI-generated noise (narration comments, dead code/imports, debug logs, weak type casts, redundant wrappers) strictly within changed files. Do NOT use for feature refactors, bug fixes, or formatting-only Prettier runs. |
 | [`dockerize`](skills/dockerize/SKILL.md) | Generates multi-stage Dockerfiles, .dockerignore, Compose with healthchecks, non-root users, and zero-localhost container networking. Do NOT use for Kubernetes/Helm, CI pipelines, or app business logic. |
-| [`express-backend-architecture`](skills/express-backend-architecture/SKILL.md) | Scaffolds, extends, and refactors modular Express.js TypeScript backends conforming to our production conventions (Mongoose, layered separation, asyncHandler, ApiError, clean response envelopes, and token-safe modular lazy-loading). Trigger when scaffolding a new Express backend from scratch, adding vertical CRUD resource bundles, or integrating optional modules (JWT auth/RBAC, Multer/Cloudinary uploads, Redis caching, Docker). Do NOT use for frontend code, NestJS apps, Next.js API routes, or non-Express scripts. |
-| [`express-to-nest`](skills/express-to-nest/SKILL.md) | Migrate an Express.js TypeScript backend to a modular NestJS application with 100% API contract fidelity, matching Mongoose schemas, Cloudinary/Multer handling, JWT cookies, and security configurations. |
 | [`fix-issue`](skills/fix-issue/SKILL.md) | Resolves GitHub issues end-to-end: fetches context, inspects codebase, resolves ambiguity via interactive gate, implements fix on a dedicated branch, verifies locally, and opens a PR upon explicit approval. Do NOT use for untracked repos, direct default branch commits, or unapproved PR creation. |
-| [`frontend-architecture`](skills/frontend-architecture/SKILL.md) | Configures boilerplate architecture, routing, API client, Zustand stores, React Hook Form + Zod, and styling setup in freshly scaffolded React (Vite) or Next.js projects, and wires unstyled structural page and form stubs. Trigger when setting up frontend project conventions, adding state/API/form boilerplate, or wiring functional page shells. Do NOT use for visual UI/UX design, custom theme styling, decorative components, backend Express/NestJS code, React Native, or generating base Vite/Next projects from scratch. |
 | [`readme-writer`](skills/readme-writer/SKILL.md) | Generates or refactors clean, prototype-first README.md files in an authentic human developer voice through codebase inspection and a structured two-round interactive grill. Use when writing a new README from scratch, overhauling an existing inconsistent README, or updating documentation after major architecture, Docker, or configuration changes. Do NOT use for authoring internal docs/ deep dives, API references, changelogs, PR summaries, or AGENTS.md files. |
 | [`wire`](skills/wire/SKILL.md) | Wires an existing frontend and backend (routes, payloads, CORS/proxy, auth transport, env). Trigger when connecting apps or fixing API integration issues. Do NOT use for initial scaffolding from scratch or UI styling. |
 <!-- SKILLS_TABLE_END -->
 
 ## License & Attribution
 
-- Custom skills in this repository are released under the [MIT License](package.json).
-- Vendored third-party skills retain their original licenses and attributions. See [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) for details.
+- All skills in this repository are released under the [MIT License](package.json).
+- The `scope`, `architect`, `develop`, and `check` workflow skills are inspired by and adapted from [JavaScript Mastery's MIT-licensed skills](https://github.com/jsmastery-pro/skills).
