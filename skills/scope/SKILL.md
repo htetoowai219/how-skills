@@ -1,98 +1,142 @@
 ---
 name: scope
-allowed-tools: Bash, Read, Grep, Glob, Write, Edit, Agent, AskUserQuestion
-description: "Run /scope to turn a product idea into a living, coarse scope in docs/scope/ and keep it current: plan a new product, plan the next slice, enroll one named feature, or run with no argument to reconcile after shipping and queue what is next. Seeds WHAT to build; /architect designs, /develop builds."
+description: Turns an idea brief (docs/scope/idea.md) or product description into a right-sized, living phase roadmap in docs/scope/SCOPE.md, or reconciles progress when run with no arguments. Enforces a Project Mode size gate so small builds stay lean. Do NOT use for raw brain-dump cleanup (/idea-dump), technical architecture or stack selection (/architect), or writing code (/develop).
+license: MIT
+compatibility: Designed for Agent Skills-compatible tools (Claude Code, Cursor, Codex, Gemini CLI, OpenCode)
 metadata:
-  source: jsmastery-pro/skills
+  source: custom
+  author: "how"
+  version: "1.0.0"
+allowed-tools:
+  - read_file
+  - run_command
+  - edit_file
+  - write_file
+  - ask_question
 ---
 
-## Output style (plain words, no dashes, no hyphens)
+# Scope
 
-<!-- OUTPUT-STYLE:START -->
-Write everything this skill produces, files and messages alike, in plain simple language. Talk to the reader as `you`, warm and direct like a colleague, and present every step as a recommendation they may run or skip, never an order. Keep technical terms that carry real meaning; explain each in plain words. Never use a dash or a hyphen as punctuation: no em dash, no en dash, and no hyphenated compounds. Write `read only`, not `read-only`. Say it in simple words, or reword the sentence. Code, file paths, command flags, and values other skills match on keep their hyphens. Use short sentences, commas, or parentheses. Clear beats clever.
-<!-- OUTPUT-STYLE:END -->
+Turns a product idea into an ordered, right-sized, living roadmap in `docs/scope/SCOPE.md` and keeps it honest as phases ship. Answers **what** to build, in **what order**, and at **what rigor level**—leaving **how** and **with what stack** to `/architect` and `/develop`.
 
-## What this skill does
+## Output Style & Tone
 
-Turns an idea into an ordered, coarse, living plan and keeps it honest as the product ships. Answers what to build, in what order, how heavy, which need a decision first, not how to build one thing (that is `/architect` and `/develop`).
+Write everything this skill produces, files and chat messages alike, in plain, direct language. Talk to the reader as `you` like a trusted senior product engineer. Present every next step as a clear recommendation `you` can run or adjust, never a rigid order. Keep sentences concise and concrete.
 
-Scope shape, coarse and small: a slim At a glance table (`# · Feature · Phase · Status`) + feature sections grouped by phase (see `scope-template.md`). Each section: heading `### N. Name` with short tags only when they matter (`needs a decision`, an approach override, a workflow tier override like `· GA`), a 1 to 2 line intent, one `Done when:` line (acceptance criteria seeds, the WHAT), checkbox steps.
+## Inferred Modes (One Command: `/scope [arg]`)
 
-Feature shape lifecycle: not yet designed → one box, its entry command. On spec capture, `/architect` fills the built ready shape: `Design it (spec)` ticked, spec linked, `Build it: /develop <feature>` with 2 to 5 milestone sub items rolled up from the spec's `## Build plan`, then `Verify it: /check verify <feature>` and `Test it: /test <feature>`. Atomic build tasks stay in the spec's `## Build plan`, never here; every box is a command or tracked milestone. Status: in the table and beside the heading; spec and code pointers once they exist.
+Inspect `docs/scope/SCOPE.md` and the argument passed to `/scope` to infer the mode automatically:
 
-One command, inferred intent (`/scope [what]`, never a subcommand):
-- **plan** (default): no scope yet + a product sized idea, or asking for the next slice. Full pass: ask → decompose into coarse feature sections → order + phase → write.
-- **replan**: scope exists + no argument. Opens with a short where things stand readout (git branch and ahead/behind the remote, feature counts by status, and each in-progress feature's resume point) so a bare `/scope` doubles as the "where was I, what is safe to pick up" orientation, then reconciles what shipped, surfaces plan vs reality drift (code or specs with no scope row), enrolls needs surfaced during the build, reorders, and queues the next slice. The normal living rhythm, not rare: run bare `/scope` again.
-- **add**: scope exists + argument names a single feature. Enroll one coarse row (intent + order + tier + Needs spec) without planning again: `/scope <a feature>`.
+1. **Plan** *(default when `docs/scope/SCOPE.md` does not exist, or when passed an idea file like `docs/scope/idea.md`)*:
+   Read the idea + inspect the codebase → run the **Project Mode Gate** + up to 3 scoping questions → propose a right-sized phase roadmap in chat → confirm → write `docs/scope/SCOPE.md`.
+2. **Replan / Reconcile** *(`docs/scope/SCOPE.md` exists + bare `/scope` with no argument)*:
+   Open with a **"Where things stand"** orientation (git branch, ahead/behind status, phase counts by status, and active phase resume point), reconcile shipped code and `docs/scope/plans/` against `SCOPE.md`, enroll surfaced follow-ups or mark cut items `Dropped`, and queue the next action. See [Approaches & Modes](references/approaches-and-modes.md).
+3. **Add** *(`docs/scope/SCOPE.md` exists + argument names a single feature or phase)*:
+   Deduplicate against existing phases, confirm placement and intent briefly in chat, and append one coarse phase row + section in `docs/scope/SCOPE.md` without replanning the whole project. See [Approaches & Modes](references/approaches-and-modes.md).
 
-## Asks vs acts
+---
 
-Senior product engineer. Same infer / ask / recommend discipline as `/architect`: INFER what the idea states (category, obvious capabilities); ASK what cannot be inferred across business, product, go to market in batched rounds (up to 4 questions per round; see Decision panels); RECOMMEND build approach, build order, the workflow tier (project default and any per feature override), which need a spec (expert calls: present them, let the engineer override).
+## Core Discipline: Asks vs. Acts
 
-Never pick tools: no provider, library, ORM, host, or BaaS chosen or named; that is `/architect`'s job per feature in the spec. A feature implying a tool choice is exactly `Needs spec: yes`. Keep the scope tool agnostic so it doesn't rot.
+- **INFER** everything already present in `docs/scope/idea.md`, `AGENTS.md`, or existing repo manifests/code. Never re-ask what is already written.
+- **ASK** only the **Project Mode** and up to **3 high-impact scoping questions** (each carrying a concrete `[Default: ...]`) in a single batched turn.
+- **RECOMMEND** the Project Mode, the Build Approach (`Tracer Bullet`, `Skateboard`, `Facade`, or `Journey`), and the phase order—always marking one option `(Recommended)` with a one-line why.
+- **Never pick tech stacks:** Do not choose frameworks, databases, ORMs, UI libraries, or hosting providers here. Record `Deferred to /architect per phase` in `SCOPE.md` unless `you` already stated specific tools in `idea.md` or existing repo code already establishes them.
 
-## Decision panels (every user facing choice)
+## Artifact Ownership & Shared State
 
-Every choice is an options panel, never a neutral menu: 2 to 4 concrete options real to this product; exactly one marked `(recommended)` with a one line why (make the call, let them override). Never add your own Other option, the picker appends a free text Other automatically; offer free text yourself only in a plain text fallback with no picker. Capability first: use the agent's picker (`AskUserQuestion` on Claude Code), else the same options as plain text; batched rounds same rule, up to 4 per round.
+- **Owns:** `docs/scope/SCOPE.md` (or `.workflow/scope/SCOPE.md` if `docs/` is a published docs site).
+- **Reads:** `docs/scope/idea.md` (if present), existing repo manifests/source tree, `AGENTS.md`, and `docs/scope/plans/*.md` (during `replan`).
+- **Canonical Phase Statuses** *(shared identically across `/scope`, `/architect`, `/develop`, `/check`)*:
+  `Planned` → `Architected` → `In Progress` → `Developed` → `Verified` *(plus `Existing` for pre-workflow brownfield features and `Dropped` for de-scoped phases)*.
+- **Surgical edits on updates:** Re-read `docs/scope/SCOPE.md` right before writing; update changed rows/sections cleanly in place without wiping history.
 
-## Artifact ownership
+---
 
-`docs/scope/` is the feature scope, owned by this skill; `/architect` owns `docs/specs/`. Other skills find a feature by scanning `docs/scope/` for its row. Living document: `plan`, `replan`, `add` all edit in place (reconcile and append, never a new dated file). Writes nothing else: no specs, code, or `AGENTS.md`. `docs/scope/` holds scope files only; inventories, analyses, research docs live with the spec in its `rationale.md` (owned by `/architect`).
+## Plan Execution Flow
 
-File shape:
-- Small product: one file, `docs/scope/scope.md` (At a glance table + phase grouped sections + legend).
-- Large product: epic split: `docs/scope/index.md` (At a glance table across epics + one line status rollup per epic, each linking its epic file) + one file per epic named by area (`docs/scope/auth.md`, …).
-- Promote on demand: start single file; when `scope.md` outgrows a comfortable scan (roughly a dozen plus features across clearly distinct areas), rename to `index.md` (keep table + per epic rollup), move each area's sections into its own `<epic>.md`. Never split it early. Names semantic (`scope.md` / `index.md` / `<epic>.md`), never numbered.
-- Keep every file coarse and small; a long epic file needs finer features and tighter intent, not a build task dump.
+### Step 1: Read Idea & Inspect Repo Context
 
-Status lifecycle (`/scope` sets initial status; the pipeline advances it):
-- New features start `planned`. Brownfield: also enroll features that are already there as `existing` (complete) or `in-progress` (partial), the only other statuses `/scope` writes.
-- `/develop` advances pipeline built work (`planned` → `in-progress` → `done`); `/sync` reconciles against the diff. A feature built on an **assumed decision** (its governing spec is `Assumed`, recorded by `/develop` when the engineer chose to build before deciding) carries an `assumed decision (spec NNNN)` note until `/architect` ratifies the decision; the note does not block `done`, it is decision debt that stays surfaced until ratified.
-- `done` ≠ `existing`: `done` = this pipeline built and verified it; `existing` predates the workflow; `/develop` and `/sync` never touch `existing` rows.
-- `replan` may set a feature dropped from scope to `dropped`, never deletes rows; `dropped` keeps history, excluded from active counts and work; `/develop` and `/sync` skip it.
+1. **Locate the idea input:**
+   - If a file path argument was passed (e.g., `/scope docs/scope/idea.md`), read it.
+   - Else if `docs/scope/idea.md` exists on disk, read it automatically.
+   - Else if an inline product description was given in the prompt, use it.
+   - Else (no `SCOPE.md`, no `idea.md`, and no inline idea): stop and ask:
+     > *"What are you building? Describe it in a few sentences, or run `/idea-dump` first if you want to sort out a messy brain dump into `docs/scope/idea.md`."*
+2. **Check repository state (fast, read-only):**
+   - Scan top-level manifests (`package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`, workspace configs) and check whether source files exist (ignoring `node_modules/`, `.git/`, `dist/`, `build/`).
+   - **Greenfield:** No code or manifest yet.
+   - **Brownfield:** Code already exists. Read `AGENTS.md` (if present) and do a lightweight directory scan to identify already-built areas (`Existing` or partial `In Progress`) and locked stack conventions so you build on top of reality instead of re-planning what already exists.
 
-Workflow tier (one rigor dial per feature, `Prototype` · `Alpha` · `Beta` · `GA`): how much process a feature warrants. ONE project default (recommended once, plan Step 5b, recorded on the scope header `**Workflow:**` line) and a per feature override (a tag beside the heading, e.g. `· GA`, only when a feature differs from the default; no tag = inherit). What the tier drives:
-- **Design time**: higher tier → more likely `Needs spec: yes`, and the spec's cross model decision critic runs (auto at `GA`/`Beta`). `Prototype`/`Alpha` features are often `Needs spec: no`.
-- **After `/develop`** (the verification tail): `Prototype` = nothing (rely on `/develop`'s own build time self check); `Alpha` = `/check verify`; `Beta` = `/check verify` + `/test`; `GA` = adds a fresh model `/check review` + `/document`.
-- **What closes `done`** (the last required stage marks it): `Prototype` → `/develop` (build + self check); `Alpha` → `/check verify`; `Beta`/`GA` → `/test`. An `Assumed` spec never blocks `done`; it stays flagged as owing ratification (`/architect`) at every tier.
+### Step 2: Project Mode Gate + Scoping Questions (Single Turn)
 
-`/scope` recommends the project default from the risk and size of the feature mix (Step 5b), the same signals `/architect` and `/develop` read; `/develop` reads the effective tier (feature override, else project default, else inferred) to scale the next steps it recommends, so a `Prototype` project is not told to run verify and a `Alpha` project is not told to run a full review chain.
+Before breaking the project into phases, ask **Project Mode** plus **up to 3 high-impact scoping questions** (omit scoping questions if `idea.md` already settles everything) in **one single turn**.
 
-Artifact base: `docs/` by default; if `docs/` is a published docs site (`docusaurus.config.*`, `.vitepress/`, `mkdocs.yml`, Astro Starlight, or Nextra detected), use `.workflow/` (`.workflow/scope/…`). Always follow whichever base already exists (paths here assume `docs/`).
+Use your runtime's interactive picker (`ask_question`, `AskUserQuestion`, `question`, `request_user_input`) when available, or present clean plain-text panels with `[Default: ...]` markers:
 
-Concurrency: shared across sessions and teammates. Read again immediately before writing; surgical edits only (append rows in order, reconcile changed cells, never rewrite the file); flag rather than clobber unexpected state; append with the next free numbers so adders don't collide.
+1. **Project Mode (Mandatory Size & Rigor Gate):**
+   Analyze `idea.md` / repo signals and mark the best-fitting tier `(Recommended)` with a 1-line reason tailored to this project:
+   - **Casual / Hobby** — Fun, learning, or personal tool. Minimal ceremony. **Cap: 1–3 phases.**
+   - **Prototype / MVP** — Fast working v1 to prove a concept. Solid core, skip heavy polish. **Cap: 2–4 phases.**
+   - **Production / Commercial** — Real users or client delivery. Full validation, error handling, security, and deployment readiness. **Cap: 4–7 phases.**
 
-## Reference files
+2. **Build Approach** *(include in the picker if non-obvious, or state your recommended default inline)*:
+   - **Tracer Bullet** — Thin end-to-end vertical thread through every layer first, then thicken. *(Default for multi-layer MVP/Production apps.)*
+   - **Skateboard** — Smallest usable complete product in Phase 01, then grow capabilities.
+   - **Facade** — Clickable UI shell on mock/placeholder data first, wire backend after. *(Prototype-grade UI validation.)*
+   - **Journey** — Finish one complete user flow deep (states + polish) per phase before starting the next.
+   See [Approaches & Modes](references/approaches-and-modes.md) for how each slices work.
 
-- `scope-template.md`: format rules, At a glance table, per feature sections (heading + intent + Done when + checkbox tasks + pointer line), brownfield enrollment and epic split shapes, the `## /scope complete` report block. Read it when writing the scope and the report.
+3. **Up to 3 High-Impact Scoping Questions (Optional, Max 3):**
+   Ask *only* unstated product boundaries that materially change phase count or scope (MVP boundary, must-have vs. deferred capability, auth/multi-user need, compliance/deployment target). Every question **must** carry an explicit `[Default: ...]` recommendation so `you` can reply "use defaults" if desired. Never ask stack/library questions here.
 
-## Portability (any OS, any agent)
+Wait for `your` answers before generating phases.
 
-Any Agent Skills client on macOS, Linux, Windows. Detection snippets are POSIX reference; use your agent's cross platform file tools. Planning runs inline; the two subagents below (Step 1 brownfield code scan, Step 6b sourcing) are optional and capability first, degrade to inline. No interactive picker: ask every panel as plain text, same options.
+### Step 3: Compose Right-Sized Phases & Confirm in Chat
 
-## Execution
+Using `your` chosen **Project Mode**, **Build Approach**, and scoping answers, design the phase roadmap:
 
-### Step 0: Infer intent & idea check
+- **Enforce the Phase Cap strictly:**
+  - `Casual / Hobby`: **1–3 phases** (a static landing page, small script, or simple personal widget should be **1–2 phases**, never 6–10!).
+  - `Prototype / MVP`: **2–4 phases**.
+  - `Production / Commercial`: **4–7 phases**.
+- **Merge small related tasks into cohesive phases:**
+  - Never split setup, config, schema, a single component, and styling into tiny separate phases when they belong together.
+  - In `Casual / Hobby` and small `Prototype / MVP` projects, fold project scaffolding + initial setup directly into **Phase 01** alongside the first working slice.
+  - Reserve a dedicated **Phase 01: Foundation & Core Architecture** only when the project is complex enough (`Production / Commercial` or multi-service `Prototype / MVP`) to warrant settling shared schema/auth/scaffold before feature slices.
+- **Brownfield repos:** Enroll already-shipped capabilities briefly as `Existing` for context; spend phases only on net-new or unfinished work.
+- **Separate Non-Goals & Deferred:** Explicitly list `Nice-to-Haves / Later` from `idea.md` and anything excluded during scoping under **Non-Goals & Deferred** so scope creep stays visible and out of active phases.
 
-No subcommand. First check whether a scope exists under `docs/scope/` (or `.workflow/scope/` if that is the artifact base), then infer:
-- Scope exists + no argument (or running again, described as "reconcile / what's next") → replan behavior (`modes/replan.md`).
-- Scope exists + argument names a single feature → add behavior (`modes/add.md`).
-- No scope yet + a product sized idea, or scoping the next slice (including brownfield) → plan behavior, below.
+**Present the proposed roadmap in chat first** (Project Mode, Build Approach, Non-Goals, and numbered Phase summary with `Intent` + `Done when:` per phase) and ask for confirmation:
+- `(Recommended) Approve & save docs/scope/SCOPE.md`
+- `Merge, split, or reorder phases`
+- `Adjust scope or non-goals`
 
-Ambiguous (a new slice vs a single feature): infer the most likely reading from scope, say which behavior you chose in the report; truly unclear → one line clarifying question.
+Iterate in chat if `you` ask for changes. Do **not** write `docs/scope/SCOPE.md` until `you` approve the roadmap.
 
-Plan behavior, no idea given (no argument, no scope to extend): stop and ask before anything else:
+### Step 4: Write `docs/scope/SCOPE.md` & Hand Off
 
-"What are you building? Describe the product or the slice of it you want to plan (one or two sentences about what it does and who it's for)."
+1. Write `docs/scope/SCOPE.md` following the exact structure in [Scope Template](references/scope-template.md):
+   - Project summary, **Project Mode**, **Build Approach**, **Source Idea**, and **Tech Stack** (`Deferred to /architect per phase`, or any user-stated / brownfield stack).
+   - **Non-Goals & Deferred** list.
+   - **At a Glance** table (`# | Phase | Status | Plan`).
+   - Numbered phase sections (`### 01. <Phase Name> · Planned`, 1–2 line intent, `**Done when:**` line, and initial checkbox `- [ ] Architect plan: /architect <Phase Name>`).
+2. Output the completion block:
 
-Wait for the answer; use it as the product idea.
+```markdown
+## /scope complete · <Project Name>
 
-### Step 1: Load the inferred behavior
+**<N> phases planned (<Project Mode>, <Build Approach> approach, <K> items deferred).**
+Scope saved to `docs/scope/SCOPE.md`.
+Next: run `/clear` for a fresh context window, then design Phase 01:
+`/architect <Phase 01 Name>`
+```
 
-After Step 0 infers the behavior, read exactly one mode file and follow it:
+`/scope` stops here. Never auto-run `/architect` or `/develop`.
 
-- `modes/plan.md` for plan behavior (new scope, product sized idea, or next slice planning).
-- `modes/replan.md` for replan behavior (scope exists and no argument).
-- `modes/add.md` for add behavior (scope exists and the argument names one feature).
+---
 
-Do not read the other mode files unless the inferred behavior changes. All common rules above still apply, and `scope-template.md` remains the format reference for any write/report.
+## References
+
+- [Scope Template](references/scope-template.md) — Exact `docs/scope/SCOPE.md` layout, checkbox lifecycle, brownfield enrollment, and status rules.
+- [Approaches & Modes](references/approaches-and-modes.md) — Slicing rules for `Tracer Bullet`, `Skateboard`, `Facade`, and `Journey`, plus `replan` and `add` workflows.

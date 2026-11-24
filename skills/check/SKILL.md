@@ -1,54 +1,67 @@
 ---
 name: check
-allowed-tools: Bash, Read, Grep, Glob, Write, Agent
-argument-hint: [verify | review]
-description: "Confirm a change before merge. `/check verify` drives the real app to prove behavior against the spec (every acceptance criterion met, every surface built). `/check review` runs a senior code review on a fresh model, one that did not write the code. Verify after implementation, review before a PR. Writes to docs/reviews/, never edits code."
+description: Audits and verifies implemented work before marking a phase complete or merging. `/check verify <Phase>` proves implementation against docs/scope/plans/<NN-slug>.md, system integration, and build/test commands (respecting Project Mode) before marking SCOPE.md Verified. `/check review` runs a senior diff review and writes findings to docs/reviews/. Do NOT use for planning (/architect) or building new features (/develop).
+license: MIT
+compatibility: Designed for Agent Skills-compatible tools (Claude Code, Cursor, Codex, Gemini CLI, OpenCode)
 metadata:
-  source: jsmastery-pro/skills
+  source: custom
+  author: "how"
+  version: "1.0.0"
+allowed-tools:
+  - read_file
+  - run_command
+  - edit_file
+  - write_file
+  - ask_question
 ---
 
-## Output style (plain words, no dashes, no hyphens)
+# Check
 
-<!-- OUTPUT-STYLE:START -->
-Write everything this skill produces, files and messages alike, in plain simple language. Talk to the reader as `you`, warm and direct like a colleague, and present every step as a recommendation they may run or skip, never an order. Keep technical terms that carry real meaning; explain each in plain words. Never use a dash or a hyphen as punctuation: no em dash, no en dash, and no hyphenated compounds. Write `read only`, not `read-only`. Say it in simple words, or reword the sentence. Code, file paths, command flags, and values other skills match on keep their hyphens. Use short sentences, commas, or parentheses. Clear beats clever.
-<!-- OUTPUT-STYLE:END -->
+The quality and integration gate after `/develop` and before merge. Two distinct modes—usually `verify` right after `/develop`, and `review` before opening a PR:
 
-## What this skill does
+- **`/check verify <Phase / Feature Name>`** *(Plan, Integration & Runtime Verification)*:
+  Audits the real implementation against `docs/scope/plans/<NN-slug>.md`'s Verification Checklist, checks end-to-end system integration (imports, routes, payloads, env vars, zero orphaned code or dead handlers), runs build/typecheck/lint/test commands, and exercises runnable surfaces. Respects `SCOPE.md`'s **Project Mode**. Marks the plan and `SCOPE.md` **`Verified`** *only* when every required check passes.
+- **`/check review [<Phase / branch / uncommitted>]`** *(Senior Code Review)*:
+  Performs a skeptical, fresh-eyes Staff Engineer review of the git diff (ideally in a fresh subagent on a contrasting model when supported), calibrated to `SCOPE.md`'s **Project Mode**, and writes severity-ranked findings (`Blocker`, `Major`, `Minor`, `Nit`) to `docs/reviews/<YYYY-MM-DD>-<slug>.md`.
 
-`/check` is the gate before merge. Two modes, separate jobs, usually both, verify first:
+## Output Style & Core Invariants
 
-- **`verify`** (runtime proof): run the real app and watch the change behave. Proves it works and conforms to the spec (every acceptance criterion met, every specced surface built), which green tests never reveal. Read only on code, no durable files, main thread. Typically after code implementation.
-- **`review`** (fresh model code review): a senior read of the diff on a **different model than wrote the code** (a model reviewing its own output shares its blind spots). Writes findings ranked by severity to `docs/reviews/`. Read only. Typically before a PR.
+1. **Direct, evidence-backed honesty:** Talk to `you` plainly. Never claim a check passed without concrete evidence (command output, HTTP/CLI response, or verified `file:line` wiring). Reading code and assuming "this should work" when a build or runtime check was skipped is never a `PASS`.
+2. **Project Mode calibration:** Always read `docs/scope/SCOPE.md` first and judge against its **Project Mode**:
+   - **Casual / Hobby:** Verify planned features work, wiring is connected with zero dead handlers, and build/typecheck succeeds. Never fail a Hobby build for missing enterprise security hardening, rate limiters, or exhaustive test suites that were not in the plan.
+   - **Prototype / MVP:** Verify all `AC-1..N`, core input validation, empty/loading/error states, clean integration, and passing build/typecheck/(tests if configured).
+   - **Production / Commercial:** Hold the full production bar—every `AC-1..N`, auth/ownership enforcement, boundary validation, live migrations, edge cases, zero dead code, and all build/typecheck/lint/test checks.
+3. **Audit first, never stealth-fix:** Both `verify` and `review` are **read-only on application code** during the audit. If gaps or bugs are found, report exact `file:line` locations first and **ask `you` before editing any code**.
 
-Neither mode edits code. `verify` points failures at `/debug` or your implementation workflow; `review` reports findings to fix.
+---
 
-## Pick the mode (route before doing anything else)
+## Step 0: Route the Mode (Before Reading Mode Guides)
 
-First step, before reading any mode file or touching the repo. Look at what followed `/check`:
+Inspect the arguments passed to `/check`:
 
-- **Starts with `verify` (or `run`)** → read `modes/verify.md`, follow it fully. Pass remaining arguments (feature name, scope) through.
-- **Starts with `review`** → read `modes/review.md`, follow it fully. Pass the steering through unchanged (e.g. `/check review with opus`, `/check review uncommitted`).
-- **No mode word, or ambiguous** (bare `/check`, or a feature name with no mode like `/check auth`) → do NOT guess, do NOT default. Show the two options as a plain text panel and **stop and wait** for the engineer's choice.
+1. **Starts with `verify` (or `run`)** → Read [Verify Mode Guide](references/verify-guide.md) in full and execute it for the named phase (or the active `Developed` phase in `docs/scope/SCOPE.md` if no phase name followed `verify`).
+2. **Starts with `review`** → Read [Review Mode Guide](references/review-guide.md) in full and execute it with any steering provided (e.g., `uncommitted`, branch name, or phase name).
+3. **No mode word given** (bare `/check`, or `/check <Phase Name>` without `verify`/`review`):
+   - Keep `<Phase Name>` (if provided) in mind as the target, and ask `you` which mode to run via your runtime's interactive picker (`ask_question`, `AskUserQuestion`, `question`, `request_user_input`) or plain text:
+     - `(Recommended) verify` — Prove the phase works against its plan, check wiring & build, and mark `Verified` on pass.
+     - `review` — Run a senior code review on the git diff and write findings to `docs/reviews/`.
+     - `both` — Run `verify` first, then run `review`.
+   - Wait for `your` pick, then load only the selected guide.
 
-**How to present the choice (plain text, works on every agent, no interactive modal):**
+---
 
-Print exactly this, then stop and wait. Do not assume `verify` until they answer. Route on their typed word (`verify` / `review` / `both`).
+## Quick Reference: Artifact Ownership by Mode
 
-```
-Which check do you want to run? Type one:
-  • verify  run the real app and prove the change works against its spec (usually right after implementation)
-  • review  a fresh model senior read of the diff, ranked findings (usually right before a PR)
-  • both    verify first, then review
-```
+| Artifact | `/check verify` | `/check review` |
+|---|---|---|
+| Application source code | Read-only during audit (asks before fixing gaps) | Read-only (never edits app code) |
+| `docs/scope/plans/<NN-slug>.md` | Ticks `## Verification Checklist` & sets `**Status:** Verified` on full PASS | Read-only context |
+| `docs/scope/SCOPE.md` | Ticks `Verify phase` & sets phase status to `Verified` on full PASS | Ticks optional `Pre-PR code review` box if present |
+| `docs/reviews/<YYYY-MM-DD>-<slug>.md` | Not touched | Writes severity-ranked review report |
 
-No interactive picker or modal: a typed choice shown inline behaves the same in every AI tool. (The `argument-hint` frontmatter also surfaces `verify | review` in Claude Code autocomplete; other tools ignore it, which is why this inline panel is the portable path.)
+---
 
-If a feature name came with no mode (`/check auth`), carry it as the target once they pick; still ask the mode.
+## References
 
-Do not mix modes in one run. On **both**, do `verify` first, then offer `review` next.
-
-## Portability (any OS, any agent)
-
-Any Agent Skills client on macOS, Linux, or Windows. `git` is the only required CLI. Other shell snippets are POSIX reference, not literal scripts: use your agent's own cross platform file, process, and browser tools. Each mode file adds its own portability notes. No subagent support falls back to inline, noted per mode.
-
-Bundled files: `modes/verify.md`, `modes/review.md`, plus `review-agent-prompt.md` and `review-guide.md` for review. Read only the mode file you routed to; resolve the review bundled files to absolute paths when spawning the reviewer.
+- [Verify Mode Guide](references/verify-guide.md) — Complete 4-layer verification workflow (plan conformance, system integration audit, build/test commands, runtime exercise, evidence gate, and `SCOPE.md` sign-off).
+- [Review Mode Guide](references/review-guide.md) — Fresh-model / subagent code review workflow, Project Mode severity calibration, and `docs/reviews/` report template.

@@ -519,7 +519,7 @@ function isIgnoredPath(ref) {
 }
 
 /**
- * Extracts slash commands (e.g., /architect, /test, /audit).
+ * Extracts slash commands (e.g., /architect, /scope, /check).
  */
 function extractSlashCommands(markdown) {
   const commands = new Set();
